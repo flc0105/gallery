@@ -48,6 +48,7 @@ def init_db():
             file_size INTEGER,
             width INTEGER,
             height INTEGER,
+            is_favorited BOOLEAN DEFAULT 0,
             uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (album_id) REFERENCES albums (id)
         )
@@ -235,6 +236,28 @@ def get_album_images(album_id):
     return jsonify([dict(image) for image in images])
 
 
+# 添加收藏API
+@app.route('/api/images/<int:image_id>/favorite', methods=['POST'])
+def toggle_favorite(image_id):
+    conn = get_db_connection()
+    image = conn.execute('SELECT * FROM images WHERE id = ?', (image_id,)).fetchone()
+
+    if not image:
+        conn.close()
+        return jsonify({'error': '图片不存在'}), 404
+
+    # 切换收藏状态
+    new_favorite_state = not image['is_favorited']
+    conn.execute('UPDATE images SET is_favorited = ? WHERE id = ?',
+                 (new_favorite_state, image_id))
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        'is_favorited': new_favorite_state,
+        'message': '操作成功'
+    })
+
 # 上传图片到相册
 @app.route('/api/albums/<int:album_id>/images', methods=['POST'])
 def upload_image(album_id):
@@ -374,31 +397,6 @@ def get_image_file(image_id):
             # 生成失败，返回错误
             return jsonify({'error': f'文件生成失败: {str(e)}'}), 500
 
-    # 如果原图也不存在，删除数据库记录
-    if not os.path.exists(original_path):
-        conn = get_db_connection()
-
-        # 检查是否是相册封面
-        album = conn.execute('SELECT * FROM albums WHERE cover_image_id = ?', (image_id,)).fetchone()
-        if album:
-            # 如果是封面，清除封面设置
-            conn.execute('UPDATE albums SET cover_image_id = NULL WHERE cover_image_id = ?', (image_id,))
-
-        # 删除图片记录
-        conn.execute('DELETE FROM images WHERE id = ?', (image_id,))
-        conn.commit()
-        conn.close()
-
-        # 尝试删除可能存在的其他版本文件
-        for path in [thumb_path, compressed_path]:
-            if os.path.exists(path):
-                try:
-                    os.remove(path)
-                except:
-                    pass
-
-        return jsonify({'error': '原图不存在，记录已删除'}), 404
-
     # 其他情况返回文件不存在
     return jsonify({'error': '文件不存在'}), 404
 
@@ -416,6 +414,37 @@ def serve_static(path):
         return send_file(path)
     else:
         return "File not found", 404
+
+
+@app.route('/api/images/<int:image_id>/rename', methods=['POST'])
+def rename_image(image_id):
+    data = request.get_json()
+    new_filename = data.get('new_filename')
+
+    if not new_filename:
+        return jsonify({'error': '新文件名不能为空'}), 400
+
+    conn = get_db_connection()
+    image = conn.execute('SELECT * FROM images WHERE id = ?', (image_id,)).fetchone()
+
+    if not image:
+        conn.close()
+        return jsonify({'error': '图片不存在'}), 404
+
+    # 检查新文件名是否已存在
+    existing = conn.execute('SELECT id FROM images WHERE original_filename = ? AND id != ?',
+                            (new_filename, image_id)).fetchone()
+    if existing:
+        conn.close()
+        return jsonify({'error': '文件名已存在'}), 400
+
+    # 更新数据库
+    conn.execute('UPDATE images SET original_filename = ? WHERE id = ?',
+                 (new_filename, image_id))
+    conn.commit()
+    conn.close()
+
+    return jsonify({'message': '重命名成功'})
 
 
 if __name__ == '__main__':
