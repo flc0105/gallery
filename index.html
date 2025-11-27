@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>在线图库</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .album-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .album-card {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+
+        .album-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+        }
+
+        .album-cover {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            background: #f0f0f0;
+        }
+
+        .album-info {
+            padding: 15px;
+        }
+
+        .album-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .album-meta {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+        }
+
+        .image-item {
+            position: relative;
+            width: 100%;
+            padding-bottom: 100%;
+            overflow: hidden;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .image-thumb {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .back-button {
+            margin-bottom: 20px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .album-actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .image-actions {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            display: flex;
+            gap: 5px;
+        }
+
+        .action-button {
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .image-detail-layout {
+            display: flex;
+            height: calc(100vh - 100px);
+            gap: 0;
+        }
+
+        .image-section {
+            flex: 7;
+            background: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .nav-button {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid #409eff;
+            color: #409eff;
+            font-size: 18px;
+            z-index: 10;
+        }
+
+        .nav-button.disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            border-color: #ccc;
+            color: #ccc;
+        }
+
+        .image-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            max-width: calc(100% - 120px);
+            height: 100%;
+        }
+
+        .detail-image {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .info-section {
+            flex: 3;
+            min-width: 300px;
+            background: white;
+            border-left: 1px solid #e0e0e0;
+            overflow-y: auto;
+        }
+
+        .info-panel {
+            padding: 20px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .info-content {
+            flex: 1;
+        }
+
+        .info-item {
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #f0f0f0;
+            line-height: 1.5;
+        }
+
+        .action-buttons {
+            /*margin: 20px 0;*/
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        /*.thumbnail-nav {*/
+        /*    margin-top: auto;*/
+        /*}*/
+
+        /*.thumbnails {*/
+        /*    display: grid;*/
+        /*    grid-template-columns: repeat(3, 1fr);*/
+        /*    gap: 8px;*/
+        /*    margin-top: 12px;*/
+        /*}*/
+
+        /*.thumb-item {*/
+        /*    cursor: pointer;*/
+        /*    border-radius: 6px;*/
+        /*    overflow: hidden;*/
+        /*    border: 2px solid transparent;*/
+        /*    opacity: 0.7;*/
+        /*    transition: all 0.2s;*/
+        /*}*/
+
+        /*.thumb-item.active {*/
+        /*    border-color: #409eff;*/
+        /*    opacity: 1;*/
+        /*}*/
+
+        /*.thumb-item img {*/
+        /*    width: 100%;*/
+        /*    height: 80px;*/
+        /*    object-fit: cover;*/
+        /*}*/
+
+        /* 移动端优化 */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 10px;
+                align-items: stretch;
+            }
+
+            .header h1 {
+                font-size: 1.5rem;
+                text-align: center;
+            }
+
+            .album-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+
+            .album-cover {
+                height: 150px;
+            }
+
+            .album-info {
+                padding: 10px;
+            }
+
+            .album-name {
+                font-size: 16px;
+            }
+
+            .album-meta {
+                font-size: 12px;
+            }
+
+            .image-grid {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 5px;
+            }
+
+            .album-actions {
+                flex-direction: column;
+            }
+
+            .image-detail-layout {
+                flex-direction: column;
+                height: auto;
+            }
+
+            .image-section {
+                flex: none;
+                height: 60vh;
+                padding: 10px;
+            }
+
+            .nav-button {
+                width: 40px;
+                height: 40px;
+                font-size: 16px;
+            }
+
+            .image-container {
+                max-width: calc(100% - 100px);
+            }
+
+            .info-section {
+                flex: none;
+                min-width: auto;
+                border-left: none;
+                border-top: 1px solid #e0e0e0;
+            }
+
+            .info-panel {
+                padding: 15px;
+            }
+
+
+            /*.thumbnails {*/
+            /*    grid-template-columns: repeat(4, 1fr);*/
+            /*}*/
+
+            /*.thumb-item img {*/
+            /*    height: 50px;*/
+            /*}*/
+
+            .el-dialog {
+                width: 95% !important;
+                max-width: 95% !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .album-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .image-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .thumbnails {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+<div id="app">
+    <div class="container">
+        <!-- 相册列表页面 -->
+        <div v-if="currentView === 'albums'">
+            <div class="header">
+                <h1>我的相册</h1>
+                <el-button type="primary" @click="showCreateAlbumDialog = true">新建相册</el-button>
+            </div>
+
+            <div v-if="albums.length === 0" class="empty-state">
+                <p>还没有相册，创建一个吧！</p>
+            </div>
+
+            <div class="album-grid" v-else>
+                <div v-for="album in albums" :key="album.id" class="album-card" @click="openAlbum(album.id)">
+                    <img v-if="album.cover_filename" :src="`/api/images/${album.cover_image_id}/file?type=thumbnail`" :alt="album.name" class="album-cover">
+                    <div v-else class="album-cover" style="display: flex; align-items: center; justify-content: center;">
+                        <span>暂无封面</span>
+                    </div>
+                    <div class="album-info">
+                        <div class="album-name">{{ album.name }}</div>
+                        <div class="album-meta">
+                            <div>图片: {{ getAlbumImageCount(album.id) }}</div>
+                            <div>创建: {{ formatDate(album.created_at) }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 相册详情页面 -->
+        <div v-if="currentView === 'album-detail'">
+            <div class="back-button">
+                <el-button @click="backToAlbums">返回相册列表</el-button>
+            </div>
+
+            <div class="header">
+                <h1>{{ currentAlbum.name }}</h1>
+                <div class="album-actions">
+                    <el-button @click="showEditAlbumDialog = true">编辑相册</el-button>
+                    <el-button @click="showUploadDialog = true">上传图片</el-button>
+                    <el-button type="danger" @click="deleteAlbum(currentAlbum.id)">删除相册</el-button>
+                </div>
+            </div>
+
+            <div class="album-meta" style="margin-bottom: 20px;">
+                <p v-if="currentAlbum.description"><strong>描述:</strong> {{ currentAlbum.description }}</p>
+                <p v-if="currentAlbum.shoot_date"><strong>拍摄日期:</strong> {{ formatDate(currentAlbum.shoot_date) }}</p>
+                <p v-if="currentAlbum.model_name"><strong>模特:</strong> {{ currentAlbum.model_name }}</p>
+                <p v-if="currentAlbum.weather"><strong>天气:</strong> {{ currentAlbum.weather }}</p>
+                <p v-if="currentAlbum.equipment"><strong>设备:</strong> {{ currentAlbum.equipment }}</p>
+            </div>
+
+            <div v-if="images.length === 0" class="empty-state">
+                <p>这个相册还没有图片，上传一些吧！</p>
+            </div>
+
+            <div class="image-grid" v-else>
+                <div v-for="image in images" :key="image.id" class="image-item" @click="viewImage(image.id)">
+                    <img :src="`/api/images/${image.id}/file?type=thumbnail`" :alt="image.original_filename" class="image-thumb">
+                    <div class="image-actions">
+                        <button class="action-button" @click.stop="setAsCover(image.id)" title="设为封面">⭐</button>
+                        <button class="action-button" @click.stop="deleteImage(image.id)" title="删除图片">🗑️</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图片详情页面 -->
+        <div v-if="currentView === 'image-detail'">
+            <div class="back-button">
+                <el-button @click="backToAlbum">返回相册</el-button>
+            </div>
+
+            <div class="image-detail-layout">
+                <div class="image-section">
+                    <div class="nav-button prev-button" :class="{ disabled: !hasPrev }" @click="prevImage">←</div>
+                    <div class="image-container">
+                        <img :src="`/api/images/${currentImage.id}/file?type=compressed`" :alt="currentImage.original_filename" class="detail-image"/>
+                    </div>
+                    <div class="nav-button next-button" :class="{ disabled: !hasNext }" @click="nextImage">→</div>
+                </div>
+
+                <div class="info-section">
+                    <div class="info-panel">
+                        <h3>图片信息</h3>
+                        <div class="info-content">
+                            <div class="info-item"><strong>文件名:</strong> {{ currentImage.original_filename }}</div>
+                            <div class="info-item"><strong>文件大小:</strong> {{ formatFileSize(currentImage.file_size) }}</div>
+                            <div class="info-item"><strong>尺寸:</strong> {{ currentImage.width }} × {{ currentImage.height }}</div>
+                            <div class="info-item"><strong>上传时间:</strong> {{ formatDate(currentImage.uploaded_at) }}</div>
+                            <div class="info-item"><strong>当前位置:</strong> {{ currentImageIndex + 1 }} / {{ images.length }}</div>
+                        </div>
+
+                        <div class="action-buttons">
+                            <el-button type="primary" @click="downloadImage(currentImage.id)">下载原图</el-button>
+                            <el-button @click="viewExifInfo(currentImage.id)">查看EXIF信息</el-button>
+                        </div>
+
+<!--                        <div class="thumbnail-nav" v-if="images.length > 1">-->
+<!--                            <h4>相册内图片</h4>-->
+<!--                            <div class="thumbnails">-->
+<!--                                <div v-for="img in images" :key="img.id" class="thumb-item" :class="{ active: img.id === currentImage.id }" @click="viewImage(img.id)">-->
+<!--                                    <img :src="`/api/images/${img.id}/file?type=thumbnail`" :alt="img.original_filename"/>-->
+<!--                                </div>-->
+<!--                            </div>-->
+<!--                        </div>-->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 对话框 -->
+        <el-dialog v-model="showCreateAlbumDialog" title="新建相册">
+            <el-form :model="newAlbum">
+                <el-form-item label="相册名称">
+                    <el-input v-model="newAlbum.name" placeholder="请输入相册名称"></el-input>
+                </el-form-item>
+                <el-form-item label="描述">
+                    <el-input v-model="newAlbum.description" type="textarea" placeholder="请输入相册描述"></el-input>
+                </el-form-item>
+                <el-form-item label="拍摄日期">
+                    <el-date-picker v-model="newAlbum.shoot_date" type="date" placeholder="选择拍摄日期"></el-date-picker>
+                </el-form-item>
+                <el-form-item label="模特">
+                    <el-input v-model="newAlbum.model_name" placeholder="请输入模特姓名"></el-input>
+                </el-form-item>
+                <el-form-item label="天气">
+                    <el-input v-model="newAlbum.weather" placeholder="请输入天气情况"></el-input>
+                </el-form-item>
+                <el-form-item label="设备">
+                    <el-input v-model="newAlbum.equipment" placeholder="请输入拍摄设备"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="showCreateAlbumDialog = false">取消</el-button>
+                <el-button type="primary" @click="createAlbum">创建</el-button>
+            </template>
+        </el-dialog>
+
+        <el-dialog v-model="showEditAlbumDialog" title="编辑相册">
+            <el-form :model="currentAlbum">
+                <el-form-item label="相册名称">
+                    <el-input v-model="currentAlbum.name" placeholder="请输入相册名称"></el-input>
+                </el-form-item>
+                <el-form-item label="描述">
+                    <el-input v-model="currentAlbum.description" type="textarea" placeholder="请输入相册描述"></el-input>
+                </el-form-item>
+                <el-form-item label="拍摄日期">
+                    <el-date-picker v-model="currentAlbum.shoot_date" type="date" placeholder="选择拍摄日期"></el-date-picker>
+                </el-form-item>
+                <el-form-item label="模特">
+                    <el-input v-model="currentAlbum.model_name" placeholder="请输入模特姓名"></el-input>
+                </el-form-item>
+                <el-form-item label="天气">
+                    <el-input v-model="currentAlbum.weather" placeholder="请输入天气情况"></el-input>
+                </el-form-item>
+                <el-form-item label="设备">
+                    <el-input v-model="currentAlbum.equipment" placeholder="请输入拍摄设备"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="showEditAlbumDialog = false">取消</el-button>
+                <el-button type="primary" @click="updateAlbum">保存</el-button>
+            </template>
+        </el-dialog>
+
+        <el-dialog v-model="showUploadDialog" title="上传图片">
+            <el-upload drag multiple :action="`/api/albums/${currentAlbum.id}/images`" :on-success="handleUploadSuccess" :on-error="handleUploadError" :before-upload="beforeUpload">
+                <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
+                <template #tip>
+                    <div class="el-upload__tip">只能上传jpg/png文件，且不超过10MB</div>
+                </template>
+            </el-upload>
+            <template #footer>
+                <el-button @click="showUploadDialog = false">关闭</el-button>
+            </template>
+        </el-dialog>
+    </div>
+</div>
+
+<script>
+    const { createApp, ref, onMounted, computed } = Vue;
+    const { ElMessage, ElMessageBox } = ElementPlus;
+
+    createApp({
+        setup() {
+            const currentView = ref('albums');
+            const albums = ref([]);
+            const images = ref([]);
+            const currentAlbum = ref({});
+            const currentImage = ref({});
+
+            const showCreateAlbumDialog = ref(false);
+            const showEditAlbumDialog = ref(false);
+            const showUploadDialog = ref(false);
+
+            const newAlbum = ref({
+                name: '',
+                description: '',
+                shoot_date: '',
+                model_name: '',
+                weather: '',
+                equipment: ''
+            });
+
+            const currentImageIndex = computed(() => {
+                return images.value.findIndex(img => img.id === currentImage.value.id);
+            });
+
+            const hasPrev = computed(() => currentImageIndex.value > 0);
+            const hasNext = computed(() => currentImageIndex.value < images.value.length - 1);
+
+            const getAlbumImageCount = (albumId) => {
+                // 简化实现，实际应该从后端获取
+                return images.value.filter(img => img.album_id === albumId).length;
+            };
+
+            const loadAlbums = async () => {
+                try {
+                    const response = await fetch('/api/albums');
+                    albums.value = await response.json();
+                } catch (error) {
+                    ElMessage.error('加载相册失败');
+                }
+            };
+
+            const loadAlbumImages = async (albumId) => {
+                try {
+                    const response = await fetch(`/api/albums/${albumId}/images`);
+                    images.value = await response.json();
+                } catch (error) {
+                    ElMessage.error('加载图片失败');
+                }
+            };
+
+            const createAlbum = async () => {
+                if (!newAlbum.value.name) {
+                    ElMessage.warning('请输入相册名称');
+                    return;
+                }
+                try {
+                    const response = await fetch('/api/albums', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(newAlbum.value)
+                    });
+                    if (response.ok) {
+                        ElMessage.success('相册创建成功');
+                        showCreateAlbumDialog.value = false;
+                        newAlbum.value = { name: '', description: '', shoot_date: '', model_name: '', weather: '', equipment: '' };
+                        loadAlbums();
+                    }
+                } catch (error) {
+                    ElMessage.error('创建相册失败');
+                }
+            };
+
+            const updateAlbum = async () => {
+                try {
+                    const response = await fetch(`/api/albums/${currentAlbum.value.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(currentAlbum.value)
+                    });
+                    if (response.ok) {
+                        ElMessage.success('相册更新成功');
+                        showEditAlbumDialog.value = false;
+                        loadAlbums();
+                    }
+                } catch (error) {
+                    ElMessage.error('更新相册失败');
+                }
+            };
+
+            const deleteAlbum = async (albumId) => {
+                try {
+                    await ElMessageBox.confirm('确定要删除这个相册吗？相册中的所有图片也将被删除。', '警告', {
+                        confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning'
+                    });
+                    const response = await fetch(`/api/albums/${albumId}`, { method: 'DELETE' });
+                    if (response.ok) {
+                        ElMessage.success('相册删除成功');
+                        backToAlbums();
+                        loadAlbums();
+                    }
+                } catch (error) {
+                    if (error !== 'cancel') ElMessage.error('删除相册失败');
+                }
+            };
+
+            const openAlbum = async (albumId) => {
+                const album = albums.value.find(a => a.id === albumId);
+                if (album) {
+                    currentAlbum.value = { ...album };
+                    await loadAlbumImages(albumId);
+                    currentView.value = 'album-detail';
+                }
+            };
+
+            const backToAlbums = () => {
+                currentView.value = 'albums';
+                currentAlbum.value = {};
+                images.value = [];
+            };
+
+            const backToAlbum = () => {
+                currentView.value = 'album-detail';
+                currentImage.value = {};
+            };
+
+            const viewImage = (imageId) => {
+                const image = images.value.find(img => img.id === imageId);
+                if (image) {
+                    currentImage.value = image;
+                    currentView.value = 'image-detail';
+                }
+            };
+
+            const prevImage = () => {
+                if (hasPrev.value) {
+                    currentImage.value = images.value[currentImageIndex.value - 1];
+                } else {
+                    ElMessage.info('已经是第一张图片了');
+                }
+            };
+
+            const nextImage = () => {
+                if (hasNext.value) {
+                    currentImage.value = images.value[currentImageIndex.value + 1];
+                } else {
+                    ElMessage.info('已经是最后一张图片了');
+                }
+            };
+
+            const handleUploadSuccess = () => {
+                ElMessage.success('图片上传成功');
+                loadAlbumImages(currentAlbum.value.id);
+            };
+
+            const handleUploadError = () => {
+                ElMessage.error('图片上传失败');
+            };
+
+            const beforeUpload = (file) => {
+                const isJPGOrPNG = file.type === 'image/jpeg' || file.type === 'image/png';
+                const isLt10M = file.size / 1024 / 1024 < 10;
+                if (!isJPGOrPNG) ElMessage.error('只能上传JPG/PNG格式的图片!');
+                if (!isLt10M) ElMessage.error('图片大小不能超过10MB!');
+                return isJPGOrPNG && isLt10M;
+            };
+
+            const deleteImage = async (imageId) => {
+                try {
+                    await ElMessageBox.confirm('确定要删除这张图片吗？', '警告', {
+                        confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning'
+                    });
+                    const response = await fetch(`/api/images/${imageId}`, { method: 'DELETE' });
+                    if (response.ok) {
+                        ElMessage.success('图片删除成功');
+                        loadAlbumImages(currentAlbum.value.id);
+                        if (currentAlbum.value.cover_image_id === imageId) loadAlbums();
+                    }
+                } catch (error) {
+                    if (error !== 'cancel') ElMessage.error('删除图片失败');
+                }
+            };
+
+            const setAsCover = async (imageId) => {
+                try {
+                    const response = await fetch(`/api/albums/${currentAlbum.value.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ cover_image_id: imageId })
+                    });
+                    if (response.ok) {
+                        ElMessage.success('封面设置成功');
+                        currentAlbum.value.cover_image_id = imageId;
+                        loadAlbums();
+                    }
+                } catch (error) {
+                    ElMessage.error('设置封面失败');
+                }
+            };
+
+            const downloadImage = async (imageId) => {
+                try {
+                    const response = await fetch(`/api/images/${imageId}/file?type=original`);
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = currentImage.value.original_filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                } catch (error) {
+                    ElMessage.error('下载图片失败');
+                }
+            };
+
+            const viewExifInfo = async (imageId) => {
+                try {
+                    const response = await fetch(`/api/images/${imageId}/exif`);
+                    const exifData = await response.json();
+                    ElMessageBox.alert(JSON.stringify(exifData, null, 2), 'EXIF信息');
+                } catch (error) {
+                    ElMessage.error('获取EXIF信息失败');
+                }
+            };
+
+            const formatDate = (dateString) => {
+                if (!dateString) return '';
+                return new Date(dateString).toLocaleDateString('zh-CN');
+            };
+
+            const formatFileSize = (bytes) => {
+                if (!bytes) return '0 B';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            };
+
+            onMounted(() => {
+                loadAlbums();
+            });
+
+            return {
+                currentView, albums, images, currentAlbum, currentImage,
+                showCreateAlbumDialog, showEditAlbumDialog, showUploadDialog,
+                newAlbum, currentImageIndex, hasPrev, hasNext,
+                getAlbumImageCount, loadAlbums, loadAlbumImages, createAlbum, updateAlbum,
+                deleteAlbum, openAlbum, backToAlbums, backToAlbum, viewImage,
+                prevImage, nextImage, handleUploadSuccess, handleUploadError,
+                beforeUpload, deleteImage, setAsCover, downloadImage, viewExifInfo,
+                formatDate, formatFileSize
+            };
+        }
+    }).use(ElementPlus).mount('#app');
+</script>
+</body>
+</html>
