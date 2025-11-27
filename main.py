@@ -1,11 +1,10 @@
 import os
 import sqlite3
+from datetime import datetime
+
+from PIL import Image
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
-from PIL import Image
-import json
-from datetime import datetime
-import exifread
 
 app = Flask(__name__)
 CORS(app)
@@ -31,13 +30,11 @@ def init_db():
         CREATE TABLE IF NOT EXISTS albums (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
-            description TEXT,
             cover_image_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             shoot_date TEXT,
             model_name TEXT,
-            weather TEXT,
-            equipment TEXT
+            location TEXT
         )
     ''')
 
@@ -51,7 +48,6 @@ def init_db():
             file_size INTEGER,
             width INTEGER,
             height INTEGER,
-            exif_data TEXT,
             uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (album_id) REFERENCES albums (id)
         )
@@ -68,31 +64,7 @@ def get_db_connection():
     return conn
 
 
-# 生成缩略图
-# def generate_thumbnail(image_path, output_path, size=(200, 200)):
-#     with Image.open(image_path) as img:
-#         # 转换为RGB模式（处理RGBA图片）
-#         if img.mode in ('RGBA', 'LA'):
-#             background = Image.new('RGB', img.size, (255, 255, 255))
-#             background.paste(img, mask=img.split()[-1])
-#             img = background
-#
-#         # 计算缩略图尺寸，保持宽高比
-#         img.thumbnail(size, Image.Resampling.LANCZOS)
-#
-#         # 创建方形画布
-#         thumb = Image.new('RGB', size, (255, 255, 255))
-#
-#         # 计算居中位置
-#         x = (size[0] - img.size[0]) // 2
-#         y = (size[1] - img.size[1]) // 2
-#
-#         # 粘贴图片到画布
-#         thumb.paste(img, (x, y))
-#         thumb.save(output_path, 'JPEG', quality=85)
-
-
-def generate_thumbnail(image_path, output_path, size=(250, 250)):  # 改为250x250
+def generate_thumbnail(image_path, output_path, size=(250, 250)):
     with Image.open(image_path) as img:
         # 转换为RGB模式
         if img.mode in ('RGBA', 'LA'):
@@ -139,20 +111,6 @@ def generate_compressed(image_path, output_path, max_size=1200):
         img.save(output_path, 'JPEG', quality=80)
 
 
-# 获取EXIF数据
-def get_exif_data(image_path):
-    try:
-        with open(image_path, 'rb') as f:
-            tags = exifread.process_file(f)
-            exif_data = {}
-            for tag, value in tags.items():
-                if tag not in ('JPEGThumbnail', 'TIFFThumbnail', 'Filename', 'EXIF MakerNote'):
-                    exif_data[tag] = str(value)
-            return exif_data
-    except:
-        return {}
-
-
 # API路由
 
 # 获取所有相册
@@ -174,11 +132,9 @@ def get_albums():
 def create_album():
     data = request.get_json()
     name = data.get('name')
-    description = data.get('description', '')
     shoot_date = data.get('shoot_date')
     model_name = data.get('model_name')
-    weather = data.get('weather')
-    equipment = data.get('equipment')
+    location = data.get('location')
 
     if not name:
         return jsonify({'error': '相册名称不能为空'}), 400
@@ -186,9 +142,9 @@ def create_album():
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO albums (name, description, shoot_date, model_name, weather, equipment)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', (name, description, shoot_date, model_name, weather, equipment))
+        INSERT INTO albums (name,shoot_date, model_name, location)
+        VALUES (?, ?, ?, ?)
+    ''', (name, shoot_date, model_name, location))
     album_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -201,11 +157,9 @@ def create_album():
 def update_album(album_id):
     data = request.get_json()
     name = data.get('name')
-    description = data.get('description')
     shoot_date = data.get('shoot_date')
     model_name = data.get('model_name')
-    weather = data.get('weather')
-    equipment = data.get('equipment')
+    location = data.get('location')
     cover_image_id = data.get('cover_image_id')
 
     conn = get_db_connection()
@@ -218,21 +172,15 @@ def update_album(album_id):
     if name is not None:
         update_fields.append("name = ?")
         values.append(name)
-    if description is not None:
-        update_fields.append("description = ?")
-        values.append(description)
     if shoot_date is not None:
         update_fields.append("shoot_date = ?")
         values.append(shoot_date)
     if model_name is not None:
         update_fields.append("model_name = ?")
         values.append(model_name)
-    if weather is not None:
-        update_fields.append("weather = ?")
-        values.append(weather)
-    if equipment is not None:
-        update_fields.append("equipment = ?")
-        values.append(equipment)
+    if location is not None:
+        update_fields.append("location = ?")
+        values.append(location)
     if cover_image_id is not None:
         update_fields.append("cover_image_id = ?")
         values.append(cover_image_id)
@@ -299,6 +247,7 @@ def upload_image(album_id):
 
     # 生成唯一文件名
     filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{file.filename}"
+
     original_path = os.path.join(UPLOAD_FOLDER, filename)
     thumb_path = os.path.join(THUMBNAIL_FOLDER, filename)
     compressed_path = os.path.join(COMPRESSED_FOLDER, filename)
@@ -315,16 +264,13 @@ def upload_image(album_id):
     generate_thumbnail(original_path, thumb_path)
     generate_compressed(original_path, compressed_path)
 
-    # 获取EXIF数据
-    exif_data = get_exif_data(original_path)
-
     # 保存到数据库
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO images (album_id, filename, original_filename, file_size, width, height, exif_data)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (album_id, filename, file.filename, file_size, width, height, json.dumps(exif_data)))
+        INSERT INTO images (album_id, filename, original_filename, file_size, width, height)
+        VALUES (?, ?, ?, ?, ?, ?)
+    ''', (album_id, filename, file.filename, file_size, width, height))
     image_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -364,6 +310,28 @@ def delete_image(image_id):
 
 
 # 获取图片文件
+# @app.route('/api/images/<int:image_id>/file')
+# def get_image_file(image_id):
+#     file_type = request.args.get('type', 'compressed')  # compressed, thumbnail, original
+#
+#     conn = get_db_connection()
+#     image = conn.execute('SELECT * FROM images WHERE id = ?', (image_id,)).fetchone()
+#     conn.close()
+#
+#     if not image:
+#         return jsonify({'error': '图片不存在'}), 404
+#
+#     if file_type == 'original':
+#         file_path = os.path.join(UPLOAD_FOLDER, image['filename'])
+#     elif file_type == 'thumbnail':
+#         file_path = os.path.join(THUMBNAIL_FOLDER, image['filename'])
+#     else:  # compressed
+#         file_path = os.path.join(COMPRESSED_FOLDER, image['filename'])
+#
+#     if not os.path.exists(file_path):
+#         return jsonify({'error': '文件不存在'}), 404
+#
+#     return send_file(file_path)
 @app.route('/api/images/<int:image_id>/file')
 def get_image_file(image_id):
     file_type = request.args.get('type', 'compressed')  # compressed, thumbnail, original
@@ -375,31 +343,64 @@ def get_image_file(image_id):
     if not image:
         return jsonify({'error': '图片不存在'}), 404
 
+    # 获取文件路径
+    original_path = os.path.join(UPLOAD_FOLDER, image['filename'])
+    thumb_path = os.path.join(THUMBNAIL_FOLDER, image['filename'])
+    compressed_path = os.path.join(COMPRESSED_FOLDER, image['filename'])
+
     if file_type == 'original':
-        file_path = os.path.join(UPLOAD_FOLDER, image['filename'])
+        file_path = original_path
     elif file_type == 'thumbnail':
-        file_path = os.path.join(THUMBNAIL_FOLDER, image['filename'])
+        file_path = thumb_path
     else:  # compressed
-        file_path = os.path.join(COMPRESSED_FOLDER, image['filename'])
+        file_path = compressed_path
 
-    if not os.path.exists(file_path):
-        return jsonify({'error': '文件不存在'}), 404
+    # 检查请求的文件是否存在
+    if os.path.exists(file_path):
+        return send_file(file_path)
 
-    return send_file(file_path)
+    # 如果请求的文件不存在，但原图存在，重新生成
+    if file_type != 'original' and os.path.exists(original_path):
+        try:
+            if file_type == 'thumbnail':
+                generate_thumbnail(original_path, thumb_path)
+            else:  # compressed
+                generate_compressed(original_path, compressed_path)
 
+            # 检查是否生成成功
+            if os.path.exists(file_path):
+                return send_file(file_path)
+        except Exception as e:
+            # 生成失败，返回错误
+            return jsonify({'error': f'文件生成失败: {str(e)}'}), 500
 
-# 获取图片EXIF信息
-@app.route('/api/images/<int:image_id>/exif')
-def get_image_exif(image_id):
-    conn = get_db_connection()
-    image = conn.execute('SELECT exif_data FROM images WHERE id = ?', (image_id,)).fetchone()
-    conn.close()
+    # 如果原图也不存在，删除数据库记录
+    if not os.path.exists(original_path):
+        conn = get_db_connection()
 
-    if not image:
-        return jsonify({'error': '图片不存在'}), 404
+        # 检查是否是相册封面
+        album = conn.execute('SELECT * FROM albums WHERE cover_image_id = ?', (image_id,)).fetchone()
+        if album:
+            # 如果是封面，清除封面设置
+            conn.execute('UPDATE albums SET cover_image_id = NULL WHERE cover_image_id = ?', (image_id,))
 
-    exif_data = json.loads(image['exif_data']) if image['exif_data'] else {}
-    return jsonify(exif_data)
+        # 删除图片记录
+        conn.execute('DELETE FROM images WHERE id = ?', (image_id,))
+        conn.commit()
+        conn.close()
+
+        # 尝试删除可能存在的其他版本文件
+        for path in [thumb_path, compressed_path]:
+            if os.path.exists(path):
+                try:
+                    os.remove(path)
+                except:
+                    pass
+
+        return jsonify({'error': '原图不存在，记录已删除'}), 404
+
+    # 其他情况返回文件不存在
+    return jsonify({'error': '文件不存在'}), 404
 
 
 # 服务前端页面
@@ -419,4 +420,5 @@ def serve_static(path):
 
 if __name__ == '__main__':
     init_db()
-    app.run(debug=True)
+    app.run(debug=True, host='192.168.2.246', port=5000)
+    # app.run(debug=True)
