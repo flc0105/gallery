@@ -49,6 +49,7 @@ def init_db():
             width INTEGER,
             height INTEGER,
             is_favorited BOOLEAN DEFAULT 0,
+                        description TEXT,
             uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (album_id) REFERENCES albums (id)
         )
@@ -589,6 +590,28 @@ def check_album_password(album_id):
 
 
 ## mima end
+
+# 更新图片描述API
+@app.route('/api/images/<int:image_id>/description', methods=['PUT'])
+def update_image_description(image_id):
+    data = request.get_json()
+    description = data.get('description', '')
+
+    conn = get_db_connection()
+
+    # 检查图片是否存在
+    image = conn.execute('SELECT * FROM images WHERE id = ?', (image_id,)).fetchone()
+    if not image:
+        conn.close()
+        return jsonify({'error': '图片不存在'}), 404
+
+    # 更新描述
+    conn.execute('UPDATE images SET description = ? WHERE id = ?',
+                 (description, image_id))
+    conn.commit()
+    conn.close()
+
+    return jsonify({'message': '描述更新成功'})
 
 if __name__ == '__main__':
     init_db()
