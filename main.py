@@ -731,6 +731,67 @@ import os
 #         return jsonify({'error': f'获取EXIF信息失败: {str(e)}'}), 500
 #
 
+# @app.route('/api/images/<int:image_id>/exif', methods=['GET'])
+# def get_image_exif_simple(image_id):
+#     conn = get_db_connection()
+#     image = conn.execute('SELECT * FROM images WHERE id = ?', (image_id,)).fetchone()
+#
+#     if not image:
+#         conn.close()
+#         return jsonify({'error': '图片不存在'}), 404
+#
+#     conn.close()
+#
+#     # 获取原图路径
+#     original_path = os.path.join(UPLOAD_FOLDER, image['filename'])
+#
+#     if not os.path.exists(original_path):
+#         return jsonify({'error': '原图文件不存在'}), 404
+#
+#     try:
+#         # 定义精简的EXIF字段
+#         simple_fields = [
+#             'Make', 'Model', 'LensModel', 'DateTimeOriginal',
+#             'FocalLength', 'FNumber', 'ExposureTime', 'ISO',
+#             'ExposureCompensation', 'ExposureProgram', 'Flash',
+#             'MeteringMode', 'WhiteBalance', 'Software'
+#         ]
+#
+#         # 构建命令获取指定字段
+#         cmd = ['exiftool', '-j', '-s']
+#         for field in simple_fields:
+#             cmd.append(f'-{field}')
+#         cmd.append(original_path)
+#
+#         result = subprocess.run(
+#             cmd,
+#             capture_output=True,
+#             text=True,
+#             check=True
+#         )
+#
+#         exif_info = json.loads(result.stdout)
+#
+#         if exif_info and len(exif_info) > 0:
+#             # 过滤掉空值
+#             filtered_exif = {}
+#             for key, value in exif_info[0].items():
+#                 if value is not None and value != '':
+#                     filtered_exif[key] = value
+#             return jsonify({'exif': filtered_exif})
+#         else:
+#             return jsonify({'exif': {}})
+#
+#     except subprocess.CalledProcessError as e:
+#         return jsonify({'error': f'exiftool执行失败: {e.stderr}'}), 500
+#     except FileNotFoundError:
+#         return jsonify({'error': 'exiftool未安装或未在PATH中'}), 500
+#     except json.JSONDecodeError:
+#         return jsonify({'error': 'EXIF数据解析失败'}), 500
+#     except Exception as e:
+#         return jsonify({'error': f'获取EXIF信息失败: {str(e)}'}), 500
+
+
 @app.route('/api/images/<int:image_id>/exif', methods=['GET'])
 def get_image_exif_simple(image_id):
     conn = get_db_connection()
@@ -773,11 +834,55 @@ def get_image_exif_simple(image_id):
         exif_info = json.loads(result.stdout)
 
         if exif_info and len(exif_info) > 0:
-            # 过滤掉空值
+            # 字段翻译字典
+            field_translation = {
+                'Make': '相机品牌',
+                'Model': '相机型号',
+                'LensModel': '镜头型号',
+                'DateTimeOriginal': '拍摄时间',
+                'FocalLength': '焦距',
+                'FNumber': '光圈',
+                'ExposureTime': '曝光时间',
+                'ISO': 'ISO',
+                'ExposureCompensation': '曝光补偿',
+                'ExposureProgram': '曝光模式',
+                'Flash': '闪光灯',
+                'MeteringMode': '测光模式',
+                'WhiteBalance': '白平衡',
+                'Software': '软件'
+            }
+
+            # 格式化处理函数
+            def format_exif_value(key, value):
+                if value is None or value == '':
+                    return None
+
+                # 日期格式化
+                if key == 'DateTimeOriginal':
+                    try:
+                        # 将 "2023:10:15 14:30:25" 格式化为 "2023-10-15 14:30:25"
+                        if ':' in value:
+                            return value.replace(':', '-', 2)
+                    except:
+                        pass
+
+                return value
+
+            # 过滤和处理数据
             filtered_exif = {}
             for key, value in exif_info[0].items():
+                # 跳过SourceFile字段
+                if key == 'SourceFile':
+                    continue
+
+                # 过滤空值
                 if value is not None and value != '':
-                    filtered_exif[key] = value
+                    formatted_value = format_exif_value(key, value)
+                    if formatted_value is not None:
+                        # 使用翻译后的字段名
+                        chinese_key = field_translation.get(key, key)
+                        filtered_exif[chinese_key] = formatted_value
+
             return jsonify({'exif': filtered_exif})
         else:
             return jsonify({'exif': {}})
