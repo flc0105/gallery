@@ -99,6 +99,50 @@
             overflow: hidden;
             border-radius: 8px;
             cursor: pointer;
+
+            transition: all 0.3s;
+        }
+
+
+        .image-item.selected {
+            border: 3px solid #409eff;
+            transform: scale(0.95);
+        }
+
+        .selection-checkbox {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            width: 24px;
+            height: 24px;
+            background: #409eff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            z-index: 5;
+        }
+
+        .selection-checkbox span {
+            font-size: 16px;
+        }
+
+
+        .selection-checkbox span {
+            font-size: 16px;
+        }
+
+
+        @media (max-width: 768px) {
+            .selection-checkbox {
+                width: 20px;
+                height: 20px;
+            }
+
+            .selection-checkbox span {
+                font-size: 14px;
+            }
         }
 
         .image-thumb {
@@ -445,6 +489,33 @@
                 <div class="album-actions">
                     <el-button @click="showEditAlbumDialog = true">编辑相册</el-button>
                     <el-button @click="showUploadDialog = true">上传图片</el-button>
+
+
+                    <el-button
+                            @click="toggleSelectionMode"
+                            :type="selectionMode ? 'primary' : 'default'"
+                    >
+                        多选
+                    </el-button>
+
+                    <el-button
+                            @click="selectAllImages"
+                            v-if="selectionMode"
+                            :disabled="images.length === 0"
+                    >
+                        {{ isAllSelected ? '取消全选' : '全选' }}
+
+                    </el-button>
+                    <el-button
+                            type="danger"
+                            :disabled="selectedImages.length === 0"
+                            @click="batchDeleteImages"
+                            v-if="selectionMode"
+                    >
+                        批量删除 ({{ selectedImages.length }})
+                    </el-button>
+
+
                     <el-button type="danger" @click="deleteAlbum(currentAlbum.id)">删除相册</el-button>
                 </div>
             </div>
@@ -460,12 +531,44 @@
                 <p>这个相册还没有图片，上传一些吧！</p>
             </div>
 
-            <div class="image-grid" v-else>
-                <div v-for="image in images" :key="image.id" class="image-item" @click="viewImage(image.id)">
-                    <img :src="`/api/images/${image.id}/file?type=thumbnail`" :alt="image.original_filename"
-                         class="image-thumb">
-                    <div class="image-actions" :class="{ 'always-visible': image.is_favorited }">
+            <!--            <div class="image-grid" v-else>-->
+            <!--                <div v-for="image in images" :key="image.id" class="image-item" @click="viewImage(image.id)">-->
+            <!--                    <img :src="`/api/images/${image.id}/file?type=thumbnail`" :alt="image.original_filename"-->
+            <!--                         class="image-thumb">-->
+            <!--                    <div class="image-actions" :class="{ 'always-visible': image.is_favorited }">-->
 
+            <!--                        <button-->
+            <!--                                class="action-button"-->
+            <!--                                :class="{ 'favorited': image.is_favorited }"-->
+            <!--                                @click.stop="toggleFavorite(image.id)"-->
+            <!--                                :title="image.is_favorited ? '取消收藏' : '收藏'"-->
+            <!--                        >-->
+            <!--                            {{ image.is_favorited ? '⭐' : '☆' }}-->
+            <!--                        </button>-->
+            <!--                        &lt;!&ndash;                        <button class="action-button" @click.stop="setAsCover(image.id)" title="设为封面">⭐</button>&ndash;&gt;-->
+            <!--                        <button class="action-button" @click.stop="deleteImage(image.id)" title="删除图片">🗑️</button>-->
+            <!--                    </div>-->
+            <!--                </div>-->
+            <!--            </div>-->
+
+
+            <div class="image-grid" v-else>
+                <div
+                        v-for="image in images"
+                        :key="image.id"
+                        class="image-item"
+                        :class="{ 'selected': selectionMode && selectedImages.includes(image.id) }"
+                        @click="handleImageClick(image.id)"
+                >
+                    <div class="selection-checkbox" v-if="selectionMode && selectedImages.includes(image.id)">
+                        <span>✅</span>
+                    </div>
+                    <img
+                            :src="`/api/images/${image.id}/file?type=thumbnail`"
+                            :alt="image.original_filename"
+                            class="image-thumb"
+                    />
+                    <div class="image-actions" :class="{ 'always-visible': image.is_favorited }">
                         <button
                                 class="action-button"
                                 :class="{ 'favorited': image.is_favorited }"
@@ -474,12 +577,14 @@
                         >
                             {{ image.is_favorited ? '⭐' : '☆' }}
                         </button>
-                        <!--                        <button class="action-button" @click.stop="setAsCover(image.id)" title="设为封面">⭐</button>-->
                         <button class="action-button" @click.stop="deleteImage(image.id)" title="删除图片">🗑️</button>
                     </div>
                 </div>
             </div>
         </div>
+
+
+        <!--        </div>-->
 
         <!-- 图片详情页面 -->
         <div v-if="currentView === 'image-detail'">
@@ -762,11 +867,16 @@
                 currentView.value = 'albums';
                 currentAlbum.value = {};
                 images.value = [];
+                selectionMode.value = false;
+                selectedImages.value = [];
             };
 
             const backToAlbum = () => {
                 currentView.value = 'album-detail';
                 currentImage.value = {};
+
+                selectionMode.value = false;
+                selectedImages.value = [];
             };
 
             const viewImage = (imageId) => {
@@ -969,6 +1079,99 @@
 // fav end
 
 
+            //duoxuan start
+// 添加多选状态
+            const selectionMode = ref(false);
+            const selectedImages = ref([]);
+
+
+// 切换选择模式
+            const toggleSelectionMode = () => {
+                selectionMode.value = !selectionMode.value;
+                if (!selectionMode.value) {
+                    // 退出选择模式时清空选择
+                    selectedImages.value = [];
+                }
+            };
+
+// 处理图片点击
+            const handleImageClick = (imageId) => {
+                if (selectionMode.value) {
+                    // 选择模式下切换选择状态
+                    const index = selectedImages.value.indexOf(imageId);
+                    if (index > -1) {
+                        selectedImages.value.splice(index, 1);
+                    } else {
+                        selectedImages.value.push(imageId);
+                    }
+                } else {
+                    // 正常模式下查看图片
+                    viewImage(imageId);
+                }
+            };
+
+// 批量删除图片
+            const batchDeleteImages = async () => {
+                if (selectedImages.value.length === 0) return;
+
+                try {
+                    await ElMessageBox.confirm(
+                        `确定要删除选中的 ${selectedImages.value.length} 张图片吗？`,
+                        '警告',
+                        {
+                            confirmButtonText: '确定',
+                            cancelButtonText: '取消',
+                            type: 'warning',
+                        }
+                    );
+
+                    // 逐个删除选中的图片
+                    const deletePromises = selectedImages.value.map(imageId =>
+                        fetch(`/api/images/${imageId}`, {method: 'DELETE'})
+                    );
+
+                    await Promise.all(deletePromises);
+
+                    ElMessage.success(`成功删除 ${selectedImages.value.length} 张图片`);
+
+                    // 清除选择状态并重新加载图片
+                    selectedImages.value = [];
+                    selectionMode.value = false; // 退出选择模式
+                    await loadAlbumImages(currentAlbum.value.id);
+
+                    // 如果删除了封面图片，重新加载相册列表
+                    if (selectedImages.value.includes(currentAlbum.value.cover_image_id)) {
+                        loadAlbums();
+                    }
+
+                } catch (error) {
+                    if (error !== 'cancel') {
+                        ElMessage.error('批量删除失败');
+                    }
+                }
+            };
+
+
+// 全选图片
+            const selectAllImages = () => {
+                if (selectedImages.value.length === images.value.length) {
+                    // 如果已经全选，则清空选择
+                    selectedImages.value = [];
+                } else {
+                    // 否则选择所有图片
+                    selectedImages.value = images.value.map(img => img.id);
+                }
+            };
+
+// 添加计算属性显示全选状态（可选）
+            const isAllSelected = computed(() => {
+                return selectionMode.value &&
+                    images.value.length > 0 &&
+                    selectedImages.value.length === images.value.length;
+            });
+
+            //duoxuan end
+
             return {
                 currentView, albums, images, currentAlbum, currentImage,
                 showCreateAlbumDialog, showEditAlbumDialog, showUploadDialog,
@@ -982,8 +1185,13 @@
                 startRename,
                 confirmRename,
                 cancelRename, toggleFavorite,
-
-
+                selectionMode,
+                selectedImages,
+                toggleSelectionMode,
+                handleImageClick,
+                batchDeleteImages,
+                selectAllImages,
+                isAllSelected,
             };
         }
     }).use(ElementPlus).mount('#app');
