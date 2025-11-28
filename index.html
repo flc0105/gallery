@@ -446,7 +446,7 @@
 
         /**f2**/
 
-        .floating-toolbar2 {
+        .album-detail-floating-toolbar {
             position: fixed;
             bottom: 30px;
             left: 50%;
@@ -462,36 +462,36 @@
             z-index: 1000;
         }
 
-        .floating-toolbar2 .el-button {
+        .album-detail-floating-toolbar .el-button {
             width: 45px;
             height: 45px;
             font-size: 18px;
         }
 
-        .floating-toolbar2 .el-button .el-icon {
+        .album-detail-floating-toolbar .el-button .el-icon {
             font-size: 20px;
         }
 
-        .floating-toolbar2 .el-button.is-disabled {
+        .album-detail-floating-toolbar .el-button.is-disabled {
             opacity: 0.4;
             cursor: not-allowed;
         }
 
         /* 移动端适配 */
         @media (max-width: 768px) {
-            .floating-toolbar2 {
+            .album-detail-floating-toolbar {
                 bottom: 20px;
                 padding: 10px 16px;
                 gap: 12px;
             }
 
-            .floating-toolbar2 .el-button {
+            .album-detail-floating-toolbar .el-button {
                 width: 40px;
                 height: 40px;
                 font-size: 16px;
             }
 
-            .floating-toolbar2 .el-button .el-icon {
+            .album-detail-floating-toolbar .el-button .el-icon {
                 font-size: 18px;
             }
         }
@@ -517,14 +517,23 @@
 
             <div class="album-grid" v-else>
                 <div v-for="album in albums" :key="album.id" class="album-card" @click="openAlbum(album.id)">
-                    <img v-if="album.cover_filename" :src="`/api/images/${album.cover_image_id}/file?type=thumbnail`"
+
+
+                    <div class="album-cover" v-if="album.has_password && !checkAlbumAccess(album.id)" style="display: flex; align-items: center; justify-content: center;">
+                        已锁定
+                    </div>
+
+                    <div v-else>
+                        <img v-if="album.cover_filename" :src="`/api/images/${album.cover_image_id}/file?type=thumbnail`"
                          :alt="album.name" class="album-cover">
                     <div v-else class="album-cover"
                          style="display: flex; align-items: center; justify-content: center;">
                         <span>暂无封面</span>
                     </div>
+                    </div>
+
                     <div class="album-info">
-                        <div class="album-name">{{ album.name }}</div>
+                        <div class="album-name">{{ album.name }}<span v-if="album.has_password"> [加密]</span></div>
                         <div class="album-meta">
                             <div>图片: {{ getAlbumImageCount(album.id) }}</div>
                             <div>创建: {{ formatDate(album.created_at) }}</div>
@@ -642,7 +651,7 @@
                         >
                             {{ image.is_favorited ? '⭐' : '☆' }}
                         </button>
-                        <button class="action-button" @click.stop="deleteImage(image.id)" title="删除图片">🗑️</button>
+                        <!--                        <button class="action-button" @click.stop="deleteImage(image.id)" title="删除图片">🗑️</button>-->
                     </div>
                 </div>
             </div>
@@ -652,7 +661,7 @@
 
 
         <!-- 悬浮工具窗 -->
-        <div class="floating-toolbar2" v-if="currentView === 'album-detail' && filteredImages.length > 0">
+        <div class="album-detail-floating-toolbar" v-if="currentView === 'album-detail' && filteredImages.length > 0">
             <el-button
                     circle
                     :type="showFavoritesOnly ? 'warning' : 'default'"
@@ -689,155 +698,176 @@
         </div>
 
 
-
-    <!-- 图片详情页面 -->
-    <div v-if="currentView === 'image-detail'">
-        <div class="back-button">
-            <el-button @click="backToAlbum">返回相册</el-button>
-        </div>
-
-        <div class="image-detail-layout">
-            <div class="image-section">
-                <div class="nav-button prev-button" :class="{ disabled: !hasPrev }" @click="prevImage">←</div>
-                <div class="image-container">
-                    <img :src="`/api/images/${currentImage.id}/file?type=compressed`"
-                         :alt="currentImage.original_filename" class="detail-image"/>
-                </div>
-                <div class="nav-button next-button" :class="{ disabled: !hasNext }" @click="nextImage">→</div>
-
-
-                <!-- 悬浮工具窗 -->
-                <div class="floating-toolbar">
-                    <el-button
-                            circle
-                            :type="currentImage.is_favorited ? 'primary' : 'default'"
-                            @click="toggleFavorite(currentImage.id)"
-                            :title="currentImage.is_favorited ? '取消收藏' : '收藏'"
-                    >
-                        🌟
-                    </el-button>
-                    <el-button
-                            circle
-                            type="danger"
-                            @click="deleteImage(currentImage.id)"
-                            title="删除图片"
-                    >
-                        🗑️
-                    </el-button>
-                </div>
-
-
+        <!-- 图片详情页面 -->
+        <div v-if="currentView === 'image-detail'">
+            <div class="back-button">
+                <el-button @click="backToAlbum">返回相册</el-button>
             </div>
 
-            <div class="info-section">
-                <div class="info-panel">
-                    <h3>图片信息</h3>
-                    <div class="info-content" style="margin-top:30px">
+            <div class="image-detail-layout">
+                <div class="image-section">
+                    <div class="nav-button prev-button" :class="{ disabled: !hasPrev }" @click="prevImage">←</div>
+                    <div class="image-container">
+                        <img :src="`/api/images/${currentImage.id}/file?type=compressed`"
+                             :alt="currentImage.original_filename" class="detail-image"/>
+                    </div>
+                    <div class="nav-button next-button" :class="{ disabled: !hasNext }" @click="nextImage">→</div>
 
 
-                        <!--                            <div class="info-item"><strong>文件名:</strong> {{ currentImage.original_filename }}</div>-->
+                    <!-- 悬浮工具窗 -->
+                    <div class="floating-toolbar">
+                        <el-button
+                                circle
+                                :type="currentImage.is_favorited ? 'primary' : 'default'"
+                                @click="toggleFavorite(currentImage.id)"
+                                :title="currentImage.is_favorited ? '取消收藏' : '收藏'"
+                        >
+                            🌟
+                        </el-button>
+                        <el-button
+                                circle
+                                type="danger"
+                                @click="deleteImage(currentImage.id)"
+                                title="删除图片"
+                        >
+                            🗑️
+                        </el-button>
+                    </div>
 
-                        <div class="info-item">
-                            <strong>文件名: </strong><!--显示输入框后自动获得焦点-->
-                            <span class="filename-display" v-if="!renamingFile"
-                                  @dblclick="startRename">{{ currentImage.original_filename}}
-                                <!--                                    <el-button type="text" size="small"  >Edit</el-button>-->
+
+                </div>
+
+                <div class="info-section">
+                    <div class="info-panel">
+                        <h3>图片信息</h3>
+                        <div class="info-content" style="margin-top:30px">
+
+
+                            <!--                            <div class="info-item"><strong>文件名:</strong> {{ currentImage.original_filename }}</div>-->
+
+                            <div class="info-item">
+                                <strong>文件名: </strong><!--显示输入框后自动获得焦点-->
+                                <span class="filename-display" v-if="!renamingFile"
+                                      @dblclick="startRename">{{ currentImage.original_filename}}
+                                    <!--                                    <el-button type="text" size="small"  >Edit</el-button>-->
                                 </span>
-                            <el-input v-else v-model="newFilename" size="small"
-                                      style="width: 200px; margin-left: 8px;" @keyup.enter="confirmRename"
-                                      @keyup.esc="cancelRename"
-                                      @blur="cancelRename"/>
+                                <el-input v-else v-model="newFilename" size="small"
+                                          style="width: 200px; margin-left: 8px;" @keyup.enter="confirmRename"
+                                          @keyup.esc="cancelRename"
+                                          @blur="cancelRename"/>
+                            </div>
+
+
+                            <div class="info-item"><strong>文件大小:</strong> {{ formatFileSize(currentImage.file_size)
+                                }}
+                            </div>
+                            <div class="info-item"><strong>尺寸:</strong> {{ currentImage.width }} ×
+                                {{ currentImage.height }}
+                            </div>
+                            <div class="info-item"><strong>上传时间:</strong> {{ formatDate(currentImage.uploaded_at) }}
+                            </div>
+                            <div class="info-item"><strong>当前位置:</strong> {{ currentImageIndex + 1 }} /
+                                {{ images.length }}
+                            </div>
                         </div>
 
 
-                        <div class="info-item"><strong>文件大小:</strong> {{ formatFileSize(currentImage.file_size)
-                            }}
+                        <div class="action-buttons">
+                            <el-button type="primary" @click="downloadImage(currentImage.id)">下载原图</el-button>
+                            <el-button type="primary" @click="setAsCover(currentImage.id)">设为封面</el-button>
+
+
                         </div>
-                        <div class="info-item"><strong>尺寸:</strong> {{ currentImage.width }} ×
-                            {{ currentImage.height }}
-                        </div>
-                        <div class="info-item"><strong>上传时间:</strong> {{ formatDate(currentImage.uploaded_at) }}
-                        </div>
-                        <div class="info-item"><strong>当前位置:</strong> {{ currentImageIndex + 1 }} /
-                            {{ images.length }}
-                        </div>
+
                     </div>
-
-
-                    <div class="action-buttons">
-                        <el-button type="primary" @click="downloadImage(currentImage.id)">下载原图</el-button>
-                        <el-button type="primary" @click="setAsCover(currentImage.id)">设为封面</el-button>
-
-
-                    </div>
-
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- 对话框 -->
-    <el-dialog v-model="showCreateAlbumDialog" title="新建相册">
-        <el-form :model="newAlbum">
-            <el-form-item label="相册名称">
-                <el-input v-model="newAlbum.name" placeholder="请输入相册名称"></el-input>
-            </el-form-item>
-            <el-form-item label="拍摄日期">
-                <el-date-picker v-model="newAlbum.shoot_date" type="date"
-                                placeholder="选择拍摄日期"></el-date-picker>
-            </el-form-item>
-            <el-form-item label="模特">
-                <el-input v-model="newAlbum.model_name" placeholder="请输入模特名字"></el-input>
-            </el-form-item>
-            <el-form-item label="地点">
-                <el-input v-model="newAlbum.location" placeholder="请输入拍摄地点"></el-input>
-            </el-form-item>
-        </el-form>
-        <template #footer>
-            <el-button @click="showCreateAlbumDialog = false">取消</el-button>
-            <el-button type="primary" @click="createAlbum">创建</el-button>
-        </template>
-    </el-dialog>
-
-    <el-dialog v-model="showEditAlbumDialog" title="编辑相册">
-        <el-form :model="currentAlbum">
-            <el-form-item label="相册名称">
-                <el-input v-model="currentAlbum.name" placeholder="请输入相册名称"></el-input>
-            </el-form-item>
-            <el-form-item label="拍摄日期">
-                <el-date-picker v-model="currentAlbum.shoot_date" type="date"
-                                placeholder="选择拍摄日期"></el-date-picker>
-            </el-form-item>
-            <el-form-item label="模特">
-                <el-input v-model="currentAlbum.model_name" placeholder="请输入模特名字"></el-input>
-            </el-form-item>
-            <el-form-item label="地点">
-                <el-input v-model="currentAlbum.location" placeholder="请输入拍摄地点"></el-input>
-            </el-form-item>
-        </el-form>
-        <template #footer>
-            <el-button @click="showEditAlbumDialog = false">取消</el-button>
-            <el-button type="primary" @click="updateAlbum">保存</el-button>
-        </template>
-    </el-dialog>
-
-    <el-dialog v-model="showUploadDialog" title="上传图片">
-        <el-upload drag multiple :action="`/api/albums/${currentAlbum.id}/images`" :on-success="handleUploadSuccess"
-                   :on-error="handleUploadError" :before-upload="beforeUpload">
-            <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
-            <template #tip>
-                <div class="el-upload__tip">只能上传jpg/png文件</div>
+        <!-- 对话框 -->
+        <el-dialog v-model="showCreateAlbumDialog" title="新建相册">
+            <el-form :model="newAlbum">
+                <el-form-item label="相册名称">
+                    <el-input v-model="newAlbum.name" placeholder="请输入相册名称"></el-input>
+                </el-form-item>
+                <el-form-item label="拍摄日期">
+                    <el-date-picker v-model="newAlbum.shoot_date" type="date"
+                                    placeholder="选择拍摄日期"></el-date-picker>
+                </el-form-item>
+                <el-form-item label="模特">
+                    <el-input v-model="newAlbum.model_name" placeholder="请输入模特名字"></el-input>
+                </el-form-item>
+                <el-form-item label="地点">
+                    <el-input v-model="newAlbum.location" placeholder="请输入拍摄地点"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="showCreateAlbumDialog = false">取消</el-button>
+                <el-button type="primary" @click="createAlbum">创建</el-button>
             </template>
-        </el-upload>
-        <template #footer>
-            <el-button @click="showUploadDialog = false">关闭</el-button>
-        </template>
-    </el-dialog>
-</div>
+        </el-dialog>
+
+        <el-dialog v-model="showEditAlbumDialog" title="编辑相册">
+            <el-form :model="currentAlbum">
+                <el-form-item label="相册名称">
+                    <el-input v-model="currentAlbum.name" placeholder="请输入相册名称"></el-input>
+                </el-form-item>
+                <el-form-item label="拍摄日期">
+                    <el-date-picker v-model="currentAlbum.shoot_date" type="date"
+                                    placeholder="选择拍摄日期"></el-date-picker>
+                </el-form-item>
+                <el-form-item label="模特">
+                    <el-input v-model="currentAlbum.model_name" placeholder="请输入模特名字"></el-input>
+                </el-form-item>
+                <el-form-item label="地点">
+                    <el-input v-model="currentAlbum.location" placeholder="请输入拍摄地点"></el-input>
+                </el-form-item>
+
+
+                <!-- 密码管理 -->
+                <el-form-item label="密码保护">
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <el-switch
+                                v-model="passwordEnabled"
+                                @change="handlePasswordToggle"
+                        />
+                        <span>{{ passwordEnabled ? '已启用' : '未启用' }}</span>
+                    </div>
+                </el-form-item>
+                <el-form-item v-if="passwordEnabled" label="设置密码">
+                    <el-input
+                            v-model="newPassword"
+                            type="password"
+                            placeholder="输入新密码"
+                            style="width: 200px;"
+                    />
+                </el-form-item>
+
+
+            </el-form>
+            <template #footer>
+                <el-button @click="showEditAlbumDialog = false">取消</el-button>
+                <el-button type="primary" @click="updateAlbum">保存</el-button>
+            </template>
+        </el-dialog>
+
+        <el-dialog v-model="showUploadDialog" title="上传图片">
+            <el-upload drag multiple :action="`/api/albums/${currentAlbum.id}/images`" :on-success="handleUploadSuccess"
+                       :on-error="handleUploadError" :before-upload="beforeUpload">
+                <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
+                <template #tip>
+                    <div class="el-upload__tip">只能上传jpg/png文件</div>
+                </template>
+            </el-upload>
+            <template #footer>
+                <el-button @click="showUploadDialog = false">关闭</el-button>
+            </template>
+        </el-dialog>
+    </div>
 </div>
 
 <script>
-    const {createApp, ref, onMounted, computed} = Vue;
+    const {createApp, ref, onMounted, computed, watch} = Vue;
     const {ElMessage, ElMessageBox} = ElementPlus;
 
     createApp({
@@ -933,6 +963,16 @@
                         body: JSON.stringify(currentAlbum.value)
                     });
                     if (response.ok) {
+
+
+                        // 密码验证
+                        if (passwordEnabled.value && newPassword.value.trim()) {
+                            await setAlbumPassword();
+                        } else if (!passwordEnabled.value) {
+                            await removeAlbumPassword();
+                        }
+
+
                         ElMessage.success('相册更新成功');
                         showEditAlbumDialog.value = false;
                         loadAlbums();
@@ -960,6 +1000,16 @@
 
             const openAlbum = async (albumId) => {
                 const album = albums.value.find(a => a.id === albumId);
+
+                // mimastart
+                if (album && album.has_password) {
+                    if (!checkAlbumAccess(albumId)) {
+                        await showPasswordDialog(album);
+                        return;
+                    }
+                }
+                //end
+
                 if (album) {
                     currentAlbum.value = {...album};
                     await loadAlbumImages(albumId);
@@ -1098,14 +1148,14 @@
             const newFilename = ref('');
 
 
-// 开始重命名
+            // 开始重命名
             const startRename = () => {
                 newFilename.value = currentImage.value.original_filename;
                 renamingFile.value = true;
 
             }
 
-// 确认重命名
+            // 确认重命名
             const confirmRename = async () => {
                 if (!newFilename.value.trim()) {
                     ElMessage.warning('文件名不能为空');
@@ -1141,17 +1191,17 @@
                 }
             };
 
-// 取消重命名
+            // 取消重命名
             const cancelRename = () => {
                 renamingFile.value = false;
                 newFilename.value = '';
             };
 
-// rename end
+            // rename end
 
 
             //favourtie start
-// 添加收藏状态管理
+            // 添加收藏状态管理
             const toggleFavorite = async (imageId) => {
                 try {
                     const response = await fetch(`/api/images/${imageId}/favorite`, {
@@ -1316,6 +1366,163 @@
 
             // 只看收藏end
 
+            // mima start
+
+         // 添加密码管理状态
+            const passwordEnabled = ref(false);
+            const newPassword = ref('');
+         // 添加相册验证状态
+            const albumAccessTokens = ref({});
+            // 处理密码开关
+            const handlePasswordToggle = (enabled) => {
+                if (!enabled) {
+                    // 关闭密码保护
+                    removeAlbumPassword();
+                }
+            };
+
+// 设置相册密码
+            const setAlbumPassword = async () => {
+                if (!newPassword.value.trim()) {
+                    ElMessage.warning('请输入密码');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/albums/${currentAlbum.value.id}/password`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            password: newPassword.value
+                        })
+                    });
+
+                    if (response.ok) {
+                        ElMessage.success('密码设置成功');
+                        newPassword.value = '';
+                    } else {
+                        ElMessage.error('密码设置失败');
+                    }
+                } catch (error) {
+                    ElMessage.error('密码设置失败');
+                }
+            };
+
+            // 移除相册密码
+            const removeAlbumPassword = async () => {
+                try {
+                    const response = await fetch(`/api/albums/${currentAlbum.value.id}/password`, {
+                        method: 'DELETE'
+                    });
+
+                    if (response.ok) {
+                        ElMessage.success('密码已移除');
+                        passwordEnabled.value = false;
+                    } else {
+                        ElMessage.error('移除密码失败');
+                    }
+                } catch (error) {
+                    ElMessage.error('移除密码失败');
+                }
+            };
+
+
+            watch(showEditAlbumDialog, (newVal) => {
+                if (newVal && currentAlbum.value) {
+                    // 检查相册是否有密码
+                    checkAlbumPasswordStatus();
+                }
+            });
+
+            const checkAlbumPasswordStatus = async () => {
+                try {
+                    const response = await fetch(`/api/albums/${currentAlbum.value.id}/has-password`);
+                    const data = await response.json();
+                    passwordEnabled.value = data.has_password;
+                    newPassword.value = '';
+                } catch (error) {
+                    console.error('检查密码状态失败:', error);
+                }
+            };
+
+
+            // 显示密码输入对话框
+            const showPasswordDialog = (album) => {
+                return new Promise((resolve) => {
+                    ElMessageBox.prompt('此相册已加密，请输入访问密码', '密码验证', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        inputType: 'password',
+
+                        inputPlaceholder: '请输入密码',
+                        beforeClose: async (action, instance, done) => {
+                            if (action === 'confirm') {
+                                const password = instance.inputValue;
+                                try {
+                                    const response = await fetch(`/api/albums/${album.id}/verify-password`, {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json'
+                                        },
+                                        body: JSON.stringify({password})
+                                    });
+
+                                    if (response.ok) {
+                                        const data = await response.json();
+                                        // 存储验证token
+                                        albumAccessTokens.value[album.id] = data.token;
+                                        localStorage.setItem(`album_${album.id}_time`, new Date().getTime().toString());
+                                        ElMessage.success('密码验证成功');
+                                        done();
+
+                                        // 验证成功后自动打开相册
+                                        currentAlbum.value = {...album};
+                                        await loadAlbumImages(album.id);
+                                        currentView.value = 'album-detail';
+
+                                        resolve(true);
+                                    } else {
+                                        const data = await response.json();
+                                        ElMessage.error(data.error || '密码错误');
+                                        instance.inputValue = '';
+                                    }
+                                } catch (error) {
+                                    ElMessage.error('验证失败');
+                                }
+                            } else {
+                                done();
+                                resolve(false);
+                            }
+                        }
+                    });
+                });
+            };
+
+
+
+            // 检查相册访问权限
+            const checkAlbumAccess = (albumId) => {
+                const token = albumAccessTokens.value[albumId];
+                if (token) {
+                    // 检查token是否过期（5分钟）
+                    const tokenTime = parseInt(localStorage.getItem(`album_${albumId}_time`) || '0');
+                    const currentTime = new Date().getTime();
+                    if (currentTime - tokenTime < 1 * 60 * 1000) { // 5分钟
+                        return true;
+                    } else {
+                        // token过期，清除
+                        delete albumAccessTokens.value[albumId];
+                        localStorage.removeItem(`album_${albumId}_time`);
+                    }
+                }
+                return false;
+            };
+
+
+            // mima end
+
             return {
                 currentView, albums, images, currentAlbum, currentImage,
                 showCreateAlbumDialog, showEditAlbumDialog, showUploadDialog,
@@ -1338,7 +1545,12 @@
                 isAllSelected,
                 showFavoritesOnly,
                 filteredImages,
-                toggleFavoriteFilter,
+                toggleFavoriteFilter, passwordEnabled,
+                newPassword,
+                handlePasswordToggle,
+                setAlbumPassword,
+                removeAlbumPassword,
+                checkAlbumAccess,
             };
         }
     }).use(ElementPlus).mount('#app');

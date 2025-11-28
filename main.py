@@ -54,6 +54,18 @@ def init_db():
         )
     ''')
 
+    # 相册密码表
+    c.execute('''
+            CREATE TABLE IF NOT EXISTS album_passwords (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                album_id INTEGER NOT NULL,
+                password_hash TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (album_id) REFERENCES albums (id) ON DELETE CASCADE,
+                UNIQUE(album_id)
+            )
+        ''')
+
     conn.commit()
     conn.close()
 
@@ -120,9 +132,11 @@ def get_albums():
     conn = get_db_connection()
     albums = conn.execute('''
         SELECT a.*, i.filename as cover_filename,
-        (SELECT COUNT(*) FROM images WHERE album_id = a.id) as image_count
+        (SELECT COUNT(*) FROM images WHERE album_id = a.id) as image_count,
+        CASE WHEN ap.id IS NOT NULL THEN 1 ELSE 0 END as has_password
         FROM albums a 
         LEFT JOIN images i ON a.cover_image_id = i.id
+        LEFT JOIN album_passwords ap ON a.id = ap.album_id
     ''').fetchall()
     conn.close()
 
@@ -259,6 +273,7 @@ def toggle_favorite(image_id):
         'message': '操作成功'
     })
 
+
 # 上传图片到相册
 @app.route('/api/albums/<int:album_id>/images', methods=['POST'])
 def upload_image(album_id):
@@ -341,6 +356,7 @@ def get_album_image_count(album_id):
     conn.close()
 
     return jsonify({'count': count['count']})
+
 
 # 获取图片文件
 # @app.route('/api/images/<int:image_id>/file')
@@ -456,6 +472,123 @@ def rename_image(image_id):
 
     return jsonify({'message': '重命名成功'})
 
+
+# mima start
+
+# 验证相册密码API
+@app.route('/api/albums/<int:album_id>/verify-password', methods=['POST'])
+def verify_album_password(album_id):
+    data = request.get_json()
+    password = data.get('password')
+
+    if not password:
+        return jsonify({'error': '密码不能为空'}), 400
+
+    conn = get_db_connection()
+
+    # 检查相册是否存在
+    album = conn.execute('SELECT * FROM albums WHERE id = ?', (album_id,)).fetchone()
+    if not album:
+        conn.close()
+        return jsonify({'error': '相册不存在'}), 404
+
+    # 获取密码哈希
+    password_record = conn.execute(
+        'SELECT * FROM album_passwords WHERE album_id = ?',
+        (album_id,)
+    ).fetchone()
+    conn.close()
+
+    if not password_record:
+        return jsonify({'error': '此相册未设置密码'}), 400
+
+    # 简单密码验证（实际应该使用加密哈希）
+    if password_record['password_hash'] == password:
+        return jsonify({
+            'success': True,
+            'message': '密码验证成功',
+            'token': f'album_{album_id}_verified'
+        })
+    else:
+        return jsonify({'error': '密码错误'}), 401
+
+
+# 设置/更新相册密码
+@app.route('/api/albums/<int:album_id>/password', methods=['POST'])
+def set_album_password(album_id):
+    data = request.get_json()
+    password = data.get('password')
+
+    if not password:
+        return jsonify({'error': '密码不能为空'}), 400
+
+    conn = get_db_connection()
+
+    # 检查相册是否存在
+    album = conn.execute('SELECT * FROM albums WHERE id = ?', (album_id,)).fetchone()
+    if not album:
+        conn.close()
+        return jsonify({'error': '相册不存在'}), 404
+
+    # 检查是否已设置密码
+    existing_password = conn.execute(
+        'SELECT id FROM album_passwords WHERE album_id = ?',
+        (album_id,)
+    ).fetchone()
+
+    if existing_password:
+        # 更新密码
+        conn.execute(
+            'UPDATE album_passwords SET password_hash = ? WHERE album_id = ?',
+            (password, album_id)
+        )
+    else:
+        # 插入新密码
+        conn.execute(
+            'INSERT INTO album_passwords (album_id, password_hash) VALUES (?, ?)',
+            (album_id, password)
+        )
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({'message': '密码设置成功'})
+
+
+# 移除相册密码
+@app.route('/api/albums/<int:album_id>/password', methods=['DELETE'])
+def remove_album_password(album_id):
+    conn = get_db_connection()
+
+    # 检查相册是否存在
+    album = conn.execute('SELECT * FROM albums WHERE id = ?', (album_id,)).fetchone()
+    if not album:
+        conn.close()
+        return jsonify({'error': '相册不存在'}), 404
+
+    # 删除密码记录
+    conn.execute('DELETE FROM album_passwords WHERE album_id = ?', (album_id,))
+    conn.commit()
+    conn.close()
+
+    return jsonify({'message': '密码已移除'})
+
+
+# 检查相册是否有密码
+@app.route('/api/albums/<int:album_id>/has-password')
+def check_album_password(album_id):
+    conn = get_db_connection()
+
+    password_record = conn.execute(
+        'SELECT id FROM album_passwords WHERE album_id = ?',
+        (album_id,)
+    ).fetchone()
+    conn.close()
+
+    return jsonify({'has_password': password_record is not None})
+
+
+## mima end
 
 if __name__ == '__main__':
     init_db()
