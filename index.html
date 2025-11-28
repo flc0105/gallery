@@ -499,6 +499,46 @@
 
         /**f2 end**/
 
+        /**lock**/
+        .locked-cover {
+            background: #f5f7fa;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #909399;
+        }
+
+        .lock-icon {
+            font-size: 48px;
+            margin-bottom: 8px;
+            color: #c0c4cc;
+        }
+
+        .lock-text {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .empty-cover {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f5f7fa;
+            color: #909399;
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            .lock-icon {
+                font-size: 36px;
+            }
+
+            .lock-text {
+                font-size: 12px;
+            }
+        }
+
 
     </style>
 </head>
@@ -520,23 +560,30 @@
                 <div v-for="album in albums" :key="album.id" class="album-card" @click="openAlbum(album.id)">
 
 
-                    <div class="album-cover" v-if="album.has_password && !checkAlbumAccess(album.id)"
+                    <div class="album-cover locked-cover" v-if="album.has_password && !checkAlbumAccess(album.id)"
                          style="display: flex; align-items: center; justify-content: center;">
-                        已锁定
+                        <el-icon class="lock-icon">
+                            <Lock/>
+                        </el-icon>
+                        <div class="lock-text">已锁定</div>
                     </div>
 
                     <div v-else>
                         <img v-if="album.cover_filename"
                              :src="`/api/images/${album.cover_image_id}/file?type=thumbnail`"
                              :alt="album.name" class="album-cover">
-                        <div v-else class="album-cover"
+                        <div v-else class="album-cover  locked-cover"
                              style="display: flex; align-items: center; justify-content: center;">
-                            <span>暂无封面</span>
+
+                            <el-icon class="lock-icon">
+                                <Folder/>
+                            </el-icon>
+                            <span class="lock-text">暂无封面</span>
                         </div>
                     </div>
 
                     <div class="album-info">
-                        <div class="album-name">{{ album.name }}<span v-if="album.has_password"> <el-icon><Lock/></el-icon></span>
+                        <div class="album-name">{{ album.name }}<span v-if="album.has_password"> (加密)</span>
                         </div>
                         <div class="album-meta">
                             <div>图片: {{ getAlbumImageCount(album.id) }}</div>
@@ -690,7 +737,7 @@
                         <el-button
                                 circle
                                 type="danger"
-                                @click="deleteImage(currentImage.id)"
+                                @click="deleteImage(currentImage.id, true)"
                                 title="删除图片"
                         >
                             <el-icon>
@@ -1043,16 +1090,62 @@
                 // return isJPGOrPNG && isLt10M;
             };
 
-            const deleteImage = async (imageId) => {
+            const deleteImage = async (imageId, fromDetail = false) => {
                 try {
                     await ElMessageBox.confirm('确定要删除这张图片吗？', '警告', {
                         confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning'
                     });
+
+
+                    // 保存当前图片索引，用于详情页删除后的导航
+                    const currentIndexBeforeDelete = images.value.findIndex(img => img.id === imageId);
+
+
                     const response = await fetch(`/api/images/${imageId}`, {method: 'DELETE'});
                     if (response.ok) {
                         ElMessage.success('图片删除成功');
-                        loadAlbumImages(currentAlbum.value.id);
-                        if (currentAlbum.value.cover_image_id === imageId) loadAlbums();
+
+
+// 重新加载图片列表
+                        await loadAlbumImages(currentAlbum.value.id);
+
+                        if (fromDetail) {
+                            // 在详情页删除的处理
+                            if (images.value.length === 0) {
+                                // 如果没有图片了，返回相册详情页
+                                backToAlbum();
+                            } else {
+                                // 智能导航到合适的图片
+                                let targetImage = null;
+
+                                // 优先尝试显示下一张
+                                if (currentIndexBeforeDelete < images.value.length) {
+                                    targetImage = images.value[currentIndexBeforeDelete];
+                                }
+                                // 如果没有下一张，显示上一张
+                                else if (currentIndexBeforeDelete > 0) {
+                                    targetImage = images.value[currentIndexBeforeDelete - 1];
+                                }
+                                // 如果都不行，显示第一张
+                                else if (images.value.length > 0) {
+                                    targetImage = images.value[0];
+                                }
+
+                                if (targetImage) {
+                                    currentImage.value = targetImage;
+                                } else {
+                                    backToAlbum();
+                                }
+                            }
+                        } else {
+                            // 在列表页删除，保持原有逻辑
+                            if (currentAlbum.value.cover_image_id === imageId) {
+                                loadAlbums();
+                            }
+                        }
+
+                        // loadAlbumImages(currentAlbum.value.id);
+                        // if (currentAlbum.value.cover_image_id === imageId) loadAlbums();
                     }
                 } catch (error) {
                     if (error !== 'cancel') ElMessage.error('删除图片失败');
