@@ -444,58 +444,57 @@
         /*floatingend*/
 
 
-
         /**f2**/
 
         .floating-toolbar2 {
-    position: fixed;
-    bottom: 30px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 15px;
-    background: rgba(255, 255, 255, 0.95);
-    padding: 12px 20px;
-    border-radius: 30px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    backdrop-filter: blur(10px);
-    border: 1px solid #e0e0e0;
-    z-index: 1000;
-}
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px 20px;
+            border-radius: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            backdrop-filter: blur(10px);
+            border: 1px solid #e0e0e0;
+            z-index: 1000;
+        }
 
-.floating-toolbar2 .el-button {
-    width: 45px;
-    height: 45px;
-    font-size: 18px;
-}
+        .floating-toolbar2 .el-button {
+            width: 45px;
+            height: 45px;
+            font-size: 18px;
+        }
 
-.floating-toolbar2 .el-button .el-icon {
-    font-size: 20px;
-}
+        .floating-toolbar2 .el-button .el-icon {
+            font-size: 20px;
+        }
 
-.floating-toolbar2 .el-button.is-disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
+        .floating-toolbar2 .el-button.is-disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
 
-/* 移动端适配 */
-@media (max-width: 768px) {
-    .floating-toolbar2 {
-        bottom: 20px;
-        padding: 10px 16px;
-        gap: 12px;
-    }
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            .floating-toolbar2 {
+                bottom: 20px;
+                padding: 10px 16px;
+                gap: 12px;
+            }
 
-    .floating-toolbar2 .el-button {
-        width: 40px;
-        height: 40px;
-        font-size: 16px;
-    }
+            .floating-toolbar2 .el-button {
+                width: 40px;
+                height: 40px;
+                font-size: 16px;
+            }
 
-    .floating-toolbar2 .el-button .el-icon {
-        font-size: 18px;
-    }
-}
+            .floating-toolbar2 .el-button .el-icon {
+                font-size: 18px;
+            }
+        }
 
         /**f2 end**/
 
@@ -548,36 +547,36 @@
                     <el-button @click="showUploadDialog = true">上传图片</el-button>
 
 
-<!--                     <el-button-->
-<!--        @click="toggleFavoriteFilter"-->
-<!--        :type="showFavoritesOnly ? 'warning' : 'default'"-->
-<!--    >-->
-<!--        {{ showFavoritesOnly ? '显示全部' : '只看收藏' }}-->
-<!--    </el-button>-->
+                    <!--                     <el-button-->
+                    <!--        @click="toggleFavoriteFilter"-->
+                    <!--        :type="showFavoritesOnly ? 'warning' : 'default'"-->
+                    <!--    >-->
+                    <!--        {{ showFavoritesOnly ? '显示全部' : '只看收藏' }}-->
+                    <!--    </el-button>-->
 
-<!--                    <el-button-->
-<!--                            @click="toggleSelectionMode"-->
-<!--                            :type="selectionMode ? 'primary' : 'default'"-->
-<!--                    >-->
-<!--                        多选-->
-<!--                    </el-button>-->
+                    <!--                    <el-button-->
+                    <!--                            @click="toggleSelectionMode"-->
+                    <!--                            :type="selectionMode ? 'primary' : 'default'"-->
+                    <!--                    >-->
+                    <!--                        多选-->
+                    <!--                    </el-button>-->
 
-<!--                    <el-button-->
-<!--                            @click="selectAllImages"-->
-<!--                            v-if="selectionMode"-->
-<!--                            :disabled="images.length === 0"-->
-<!--                    >-->
-<!--                        {{ isAllSelected ? '取消全选' : '全选' }}-->
+                    <!--                    <el-button-->
+                    <!--                            @click="selectAllImages"-->
+                    <!--                            v-if="selectionMode"-->
+                    <!--                            :disabled="images.length === 0"-->
+                    <!--                    >-->
+                    <!--                        {{ isAllSelected ? '取消全选' : '全选' }}-->
 
-<!--                    </el-button>-->
-<!--                    <el-button-->
-<!--                            type="danger"-->
-<!--                            :disabled="selectedImages.length === 0"-->
-<!--                            @click="batchDeleteImages"-->
-<!--                            v-if="selectionMode"-->
-<!--                    >-->
-<!--                        批量删除 ({{ selectedImages.length }})-->
-<!--                    </el-button>-->
+                    <!--                    </el-button>-->
+                    <!--                    <el-button-->
+                    <!--                            type="danger"-->
+                    <!--                            :disabled="selectedImages.length === 0"-->
+                    <!--                            @click="batchDeleteImages"-->
+                    <!--                            v-if="selectionMode"-->
+                    <!--                    >-->
+                    <!--                        批量删除 ({{ selectedImages.length }})-->
+                    <!--                    </el-button>-->
 
 
                     <el-button type="danger" @click="deleteAlbum(currentAlbum.id)">删除相册</el-button>
@@ -649,203 +648,192 @@
             </div>
 
 
+        </div>
 
 
-
-
-
-
-
-
+        <!-- 悬浮工具窗 -->
+        <div class="floating-toolbar2" v-if="currentView === 'album-detail' && filteredImages.length > 0">
+            <el-button
+                    circle
+                    :type="showFavoritesOnly ? 'warning' : 'default'"
+                    @click="toggleFavoriteFilter"
+                    :title="showFavoritesOnly ? '显示全部' : '只看收藏'"
+            >
+                🌟
+            </el-button>
+            <el-button
+                    circle
+                    :type="selectionMode ? 'primary' : 'default'"
+                    @click="toggleSelectionMode"
+                    title="多选模式"
+            >
+                ☑️
+            </el-button>
+            <el-button
+                    circle
+                    @click="selectAllImages"
+                    :disabled="!selectionMode || filteredImages.length === 0"
+                    :title="isAllSelected ? '取消全选' : '全选'"
+            >
+                ✅
+            </el-button>
+            <el-button
+                    circle
+                    type="danger"
+                    @click="batchDeleteImages"
+                    :disabled="!selectionMode || selectedImages.length === 0"
+                    :title="`批量删除 (${selectedImages.length})`"
+            >
+                🗑️
+            </el-button>
         </div>
 
 
 
+    <!-- 图片详情页面 -->
+    <div v-if="currentView === 'image-detail'">
+        <div class="back-button">
+            <el-button @click="backToAlbum">返回相册</el-button>
+        </div>
 
-               <!-- 悬浮工具窗 -->
-    <div class="floating-toolbar2" v-if="filteredImages.length > 0">
-        <el-button
-            circle
-            :type="showFavoritesOnly ? 'warning' : 'default'"
-            @click="toggleFavoriteFilter"
-            :title="showFavoritesOnly ? '显示全部' : '只看收藏'"
-        >
-            🌟
-        </el-button>
-        <el-button
-            circle
-            :type="selectionMode ? 'primary' : 'default'"
-            @click="toggleSelectionMode"
-            title="多选模式"
-        >
-            ☑️
-        </el-button>
-        <el-button
-            circle
-            @click="selectAllImages"
-            :disabled="!selectionMode || filteredImages.length === 0"
-            :title="isAllSelected ? '取消全选' : '全选'"
-        >
-            ✅
-        </el-button>
-        <el-button
-            circle
-            type="danger"
-            @click="batchDeleteImages"
-            :disabled="!selectionMode || selectedImages.length === 0"
-            :title="`批量删除 (${selectedImages.length})`"
-        >
-            🗑️
-        </el-button>
-    </div>
-</div>
-
-        <!--        </div>-->
-
-        <!-- 图片详情页面 -->
-        <div v-if="currentView === 'image-detail'">
-            <div class="back-button">
-                <el-button @click="backToAlbum">返回相册</el-button>
-            </div>
-
-            <div class="image-detail-layout">
-                <div class="image-section">
-                    <div class="nav-button prev-button" :class="{ disabled: !hasPrev }" @click="prevImage">←</div>
-                    <div class="image-container">
-                        <img :src="`/api/images/${currentImage.id}/file?type=compressed`"
-                             :alt="currentImage.original_filename" class="detail-image"/>
-                    </div>
-                    <div class="nav-button next-button" :class="{ disabled: !hasNext }" @click="nextImage">→</div>
+        <div class="image-detail-layout">
+            <div class="image-section">
+                <div class="nav-button prev-button" :class="{ disabled: !hasPrev }" @click="prevImage">←</div>
+                <div class="image-container">
+                    <img :src="`/api/images/${currentImage.id}/file?type=compressed`"
+                         :alt="currentImage.original_filename" class="detail-image"/>
+                </div>
+                <div class="nav-button next-button" :class="{ disabled: !hasNext }" @click="nextImage">→</div>
 
 
-                    <!-- 悬浮工具窗 -->
-                    <div class="floating-toolbar">
-                        <el-button
-                                circle
-                                :type="currentImage.is_favorited ? 'primary' : 'default'"
-                                @click="toggleFavorite(currentImage.id)"
-                                :title="currentImage.is_favorited ? '取消收藏' : '收藏'"
-                        >
-                            🌟
-                        </el-button>
-                        <el-button
-                                circle
-                                type="danger"
-                                @click="deleteImage(currentImage.id)"
-                                title="删除图片"
-                        >
-                            🗑️
-                        </el-button>
-                    </div>
-
-
+                <!-- 悬浮工具窗 -->
+                <div class="floating-toolbar">
+                    <el-button
+                            circle
+                            :type="currentImage.is_favorited ? 'primary' : 'default'"
+                            @click="toggleFavorite(currentImage.id)"
+                            :title="currentImage.is_favorited ? '取消收藏' : '收藏'"
+                    >
+                        🌟
+                    </el-button>
+                    <el-button
+                            circle
+                            type="danger"
+                            @click="deleteImage(currentImage.id)"
+                            title="删除图片"
+                    >
+                        🗑️
+                    </el-button>
                 </div>
 
-                <div class="info-section">
-                    <div class="info-panel">
-                        <h3>图片信息</h3>
-                        <div class="info-content" style="margin-top:30px">
+
+            </div>
+
+            <div class="info-section">
+                <div class="info-panel">
+                    <h3>图片信息</h3>
+                    <div class="info-content" style="margin-top:30px">
 
 
-                            <!--                            <div class="info-item"><strong>文件名:</strong> {{ currentImage.original_filename }}</div>-->
+                        <!--                            <div class="info-item"><strong>文件名:</strong> {{ currentImage.original_filename }}</div>-->
 
-                            <div class="info-item">
-                                <strong>文件名: </strong><!--显示输入框后自动获得焦点-->
-                                <span class="filename-display" v-if="!renamingFile"
-                                      @dblclick="startRename">{{ currentImage.original_filename}}
-                                    <!--                                    <el-button type="text" size="small"  >Edit</el-button>-->
+                        <div class="info-item">
+                            <strong>文件名: </strong><!--显示输入框后自动获得焦点-->
+                            <span class="filename-display" v-if="!renamingFile"
+                                  @dblclick="startRename">{{ currentImage.original_filename}}
+                                <!--                                    <el-button type="text" size="small"  >Edit</el-button>-->
                                 </span>
-                                <el-input v-else v-model="newFilename" size="small"
-                                          style="width: 200px; margin-left: 8px;" @keyup.enter="confirmRename"
-                                          @keyup.esc="cancelRename"
-                                          @blur="cancelRename"/>
-                            </div>
-
-
-                            <div class="info-item"><strong>文件大小:</strong> {{ formatFileSize(currentImage.file_size)
-                                }}
-                            </div>
-                            <div class="info-item"><strong>尺寸:</strong> {{ currentImage.width }} ×
-                                {{ currentImage.height }}
-                            </div>
-                            <div class="info-item"><strong>上传时间:</strong> {{ formatDate(currentImage.uploaded_at) }}
-                            </div>
-                            <div class="info-item"><strong>当前位置:</strong> {{ currentImageIndex + 1 }} /
-                                {{ images.length }}
-                            </div>
+                            <el-input v-else v-model="newFilename" size="small"
+                                      style="width: 200px; margin-left: 8px;" @keyup.enter="confirmRename"
+                                      @keyup.esc="cancelRename"
+                                      @blur="cancelRename"/>
                         </div>
 
 
-                        <div class="action-buttons">
-                            <el-button type="primary" @click="downloadImage(currentImage.id)">下载原图</el-button>
-                            <el-button type="primary" @click="setAsCover(currentImage.id)">设为封面</el-button>
-
-
+                        <div class="info-item"><strong>文件大小:</strong> {{ formatFileSize(currentImage.file_size)
+                            }}
                         </div>
+                        <div class="info-item"><strong>尺寸:</strong> {{ currentImage.width }} ×
+                            {{ currentImage.height }}
+                        </div>
+                        <div class="info-item"><strong>上传时间:</strong> {{ formatDate(currentImage.uploaded_at) }}
+                        </div>
+                        <div class="info-item"><strong>当前位置:</strong> {{ currentImageIndex + 1 }} /
+                            {{ images.length }}
+                        </div>
+                    </div>
+
+
+                    <div class="action-buttons">
+                        <el-button type="primary" @click="downloadImage(currentImage.id)">下载原图</el-button>
+                        <el-button type="primary" @click="setAsCover(currentImage.id)">设为封面</el-button>
+
 
                     </div>
+
                 </div>
             </div>
         </div>
-
-        <!-- 对话框 -->
-        <el-dialog v-model="showCreateAlbumDialog" title="新建相册">
-            <el-form :model="newAlbum">
-                <el-form-item label="相册名称">
-                    <el-input v-model="newAlbum.name" placeholder="请输入相册名称"></el-input>
-                </el-form-item>
-                <el-form-item label="拍摄日期">
-                    <el-date-picker v-model="newAlbum.shoot_date" type="date"
-                                    placeholder="选择拍摄日期"></el-date-picker>
-                </el-form-item>
-                <el-form-item label="模特">
-                    <el-input v-model="newAlbum.model_name" placeholder="请输入模特名字"></el-input>
-                </el-form-item>
-                <el-form-item label="地点">
-                    <el-input v-model="newAlbum.location" placeholder="请输入拍摄地点"></el-input>
-                </el-form-item>
-            </el-form>
-            <template #footer>
-                <el-button @click="showCreateAlbumDialog = false">取消</el-button>
-                <el-button type="primary" @click="createAlbum">创建</el-button>
-            </template>
-        </el-dialog>
-
-        <el-dialog v-model="showEditAlbumDialog" title="编辑相册">
-            <el-form :model="currentAlbum">
-                <el-form-item label="相册名称">
-                    <el-input v-model="currentAlbum.name" placeholder="请输入相册名称"></el-input>
-                </el-form-item>
-                <el-form-item label="拍摄日期">
-                    <el-date-picker v-model="currentAlbum.shoot_date" type="date"
-                                    placeholder="选择拍摄日期"></el-date-picker>
-                </el-form-item>
-                <el-form-item label="模特">
-                    <el-input v-model="currentAlbum.model_name" placeholder="请输入模特名字"></el-input>
-                </el-form-item>
-                <el-form-item label="地点">
-                    <el-input v-model="currentAlbum.location" placeholder="请输入拍摄地点"></el-input>
-                </el-form-item>
-            </el-form>
-            <template #footer>
-                <el-button @click="showEditAlbumDialog = false">取消</el-button>
-                <el-button type="primary" @click="updateAlbum">保存</el-button>
-            </template>
-        </el-dialog>
-
-        <el-dialog v-model="showUploadDialog" title="上传图片">
-            <el-upload drag multiple :action="`/api/albums/${currentAlbum.id}/images`" :on-success="handleUploadSuccess"
-                       :on-error="handleUploadError" :before-upload="beforeUpload">
-                <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
-                <template #tip>
-                    <div class="el-upload__tip">只能上传jpg/png文件</div>
-                </template>
-            </el-upload>
-            <template #footer>
-                <el-button @click="showUploadDialog = false">关闭</el-button>
-            </template>
-        </el-dialog>
     </div>
+
+    <!-- 对话框 -->
+    <el-dialog v-model="showCreateAlbumDialog" title="新建相册">
+        <el-form :model="newAlbum">
+            <el-form-item label="相册名称">
+                <el-input v-model="newAlbum.name" placeholder="请输入相册名称"></el-input>
+            </el-form-item>
+            <el-form-item label="拍摄日期">
+                <el-date-picker v-model="newAlbum.shoot_date" type="date"
+                                placeholder="选择拍摄日期"></el-date-picker>
+            </el-form-item>
+            <el-form-item label="模特">
+                <el-input v-model="newAlbum.model_name" placeholder="请输入模特名字"></el-input>
+            </el-form-item>
+            <el-form-item label="地点">
+                <el-input v-model="newAlbum.location" placeholder="请输入拍摄地点"></el-input>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="showCreateAlbumDialog = false">取消</el-button>
+            <el-button type="primary" @click="createAlbum">创建</el-button>
+        </template>
+    </el-dialog>
+
+    <el-dialog v-model="showEditAlbumDialog" title="编辑相册">
+        <el-form :model="currentAlbum">
+            <el-form-item label="相册名称">
+                <el-input v-model="currentAlbum.name" placeholder="请输入相册名称"></el-input>
+            </el-form-item>
+            <el-form-item label="拍摄日期">
+                <el-date-picker v-model="currentAlbum.shoot_date" type="date"
+                                placeholder="选择拍摄日期"></el-date-picker>
+            </el-form-item>
+            <el-form-item label="模特">
+                <el-input v-model="currentAlbum.model_name" placeholder="请输入模特名字"></el-input>
+            </el-form-item>
+            <el-form-item label="地点">
+                <el-input v-model="currentAlbum.location" placeholder="请输入拍摄地点"></el-input>
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="showEditAlbumDialog = false">取消</el-button>
+            <el-button type="primary" @click="updateAlbum">保存</el-button>
+        </template>
+    </el-dialog>
+
+    <el-dialog v-model="showUploadDialog" title="上传图片">
+        <el-upload drag multiple :action="`/api/albums/${currentAlbum.id}/images`" :on-success="handleUploadSuccess"
+                   :on-error="handleUploadError" :before-upload="beforeUpload">
+            <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
+            <template #tip>
+                <div class="el-upload__tip">只能上传jpg/png文件</div>
+            </template>
+        </el-upload>
+        <template #footer>
+            <el-button @click="showUploadDialog = false">关闭</el-button>
+        </template>
+    </el-dialog>
+</div>
 </div>
 
 <script>
@@ -1288,44 +1276,43 @@
 
 
             // 修改全选计算属性，基于筛选后的图片
-const isAllSelected = computed(() => {
-    return selectionMode.value &&
-           filteredImages.value.length > 0 &&
-           selectedImages.value.length === filteredImages.value.length;
-});
+            const isAllSelected = computed(() => {
+                return selectionMode.value &&
+                    filteredImages.value.length > 0 &&
+                    selectedImages.value.length === filteredImages.value.length;
+            });
 
 // 修改全选函数，基于筛选后的图片
-const selectAllImages = () => {
-    if (selectedImages.value.length === filteredImages.value.length) {
-        // 如果已经全选，则清空选择
-        selectedImages.value = [];
-    } else {
-        // 否则选择所有筛选后的图片
-        selectedImages.value = filteredImages.value.map(img => img.id);
-    }
-};
+            const selectAllImages = () => {
+                if (selectedImages.value.length === filteredImages.value.length) {
+                    // 如果已经全选，则清空选择
+                    selectedImages.value = [];
+                } else {
+                    // 否则选择所有筛选后的图片
+                    selectedImages.value = filteredImages.value.map(img => img.id);
+                }
+            };
             //duoxuan end
-
 
 
             // 只看收藏start
 // 添加收藏筛选状态
-const showFavoritesOnly = ref(false);
+            const showFavoritesOnly = ref(false);
 
 // 计算筛选后的图片列表
-const filteredImages = computed(() => {
-    if (showFavoritesOnly.value) {
-        return images.value.filter(img => img.is_favorited);
-    }
-    return images.value;
-});
+            const filteredImages = computed(() => {
+                if (showFavoritesOnly.value) {
+                    return images.value.filter(img => img.is_favorited);
+                }
+                return images.value;
+            });
 
 // 切换收藏筛选
-const toggleFavoriteFilter = () => {
-    showFavoritesOnly.value = !showFavoritesOnly.value;
-    // 切换筛选时清空选择状态
-    selectedImages.value = [];
-};
+            const toggleFavoriteFilter = () => {
+                showFavoritesOnly.value = !showFavoritesOnly.value;
+                // 切换筛选时清空选择状态
+                selectedImages.value = [];
+            };
 
             // 只看收藏end
 
@@ -1349,9 +1336,9 @@ const toggleFavoriteFilter = () => {
                 batchDeleteImages,
                 selectAllImages,
                 isAllSelected,
-                  showFavoritesOnly,
-    filteredImages,
-    toggleFavoriteFilter,
+                showFavoritesOnly,
+                filteredImages,
+                toggleFavoriteFilter,
             };
         }
     }).use(ElementPlus).mount('#app');
