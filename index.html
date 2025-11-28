@@ -443,6 +443,63 @@
 
         /*floatingend*/
 
+
+
+        /**f2**/
+
+        .floating-toolbar2 {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 15px;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 12px 20px;
+    border-radius: 30px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(10px);
+    border: 1px solid #e0e0e0;
+    z-index: 1000;
+}
+
+.floating-toolbar2 .el-button {
+    width: 45px;
+    height: 45px;
+    font-size: 18px;
+}
+
+.floating-toolbar2 .el-button .el-icon {
+    font-size: 20px;
+}
+
+.floating-toolbar2 .el-button.is-disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+    .floating-toolbar2 {
+        bottom: 20px;
+        padding: 10px 16px;
+        gap: 12px;
+    }
+
+    .floating-toolbar2 .el-button {
+        width: 40px;
+        height: 40px;
+        font-size: 16px;
+    }
+
+    .floating-toolbar2 .el-button .el-icon {
+        font-size: 18px;
+    }
+}
+
+        /**f2 end**/
+
+
     </style>
 </head>
 <body>
@@ -491,29 +548,36 @@
                     <el-button @click="showUploadDialog = true">上传图片</el-button>
 
 
-                    <el-button
-                            @click="toggleSelectionMode"
-                            :type="selectionMode ? 'primary' : 'default'"
-                    >
-                        多选
-                    </el-button>
+<!--                     <el-button-->
+<!--        @click="toggleFavoriteFilter"-->
+<!--        :type="showFavoritesOnly ? 'warning' : 'default'"-->
+<!--    >-->
+<!--        {{ showFavoritesOnly ? '显示全部' : '只看收藏' }}-->
+<!--    </el-button>-->
 
-                    <el-button
-                            @click="selectAllImages"
-                            v-if="selectionMode"
-                            :disabled="images.length === 0"
-                    >
-                        {{ isAllSelected ? '取消全选' : '全选' }}
+<!--                    <el-button-->
+<!--                            @click="toggleSelectionMode"-->
+<!--                            :type="selectionMode ? 'primary' : 'default'"-->
+<!--                    >-->
+<!--                        多选-->
+<!--                    </el-button>-->
 
-                    </el-button>
-                    <el-button
-                            type="danger"
-                            :disabled="selectedImages.length === 0"
-                            @click="batchDeleteImages"
-                            v-if="selectionMode"
-                    >
-                        批量删除 ({{ selectedImages.length }})
-                    </el-button>
+<!--                    <el-button-->
+<!--                            @click="selectAllImages"-->
+<!--                            v-if="selectionMode"-->
+<!--                            :disabled="images.length === 0"-->
+<!--                    >-->
+<!--                        {{ isAllSelected ? '取消全选' : '全选' }}-->
+
+<!--                    </el-button>-->
+<!--                    <el-button-->
+<!--                            type="danger"-->
+<!--                            :disabled="selectedImages.length === 0"-->
+<!--                            @click="batchDeleteImages"-->
+<!--                            v-if="selectionMode"-->
+<!--                    >-->
+<!--                        批量删除 ({{ selectedImages.length }})-->
+<!--                    </el-button>-->
 
 
                     <el-button type="danger" @click="deleteAlbum(currentAlbum.id)">删除相册</el-button>
@@ -552,9 +616,11 @@
             <!--            </div>-->
 
 
-            <div class="image-grid" v-else>
+            <div class="image-grid" v-else><!-- images改为filteredImages -->
                 <div
-                        v-for="image in images"
+
+                        v-for="image in filteredImages"
+
                         :key="image.id"
                         class="image-item"
                         :class="{ 'selected': selectionMode && selectedImages.includes(image.id) }"
@@ -581,8 +647,58 @@
                     </div>
                 </div>
             </div>
+
+
+
+
+
+
+
+
+
+
         </div>
 
+
+
+
+               <!-- 悬浮工具窗 -->
+    <div class="floating-toolbar2" v-if="filteredImages.length > 0">
+        <el-button
+            circle
+            :type="showFavoritesOnly ? 'warning' : 'default'"
+            @click="toggleFavoriteFilter"
+            :title="showFavoritesOnly ? '显示全部' : '只看收藏'"
+        >
+            🌟
+        </el-button>
+        <el-button
+            circle
+            :type="selectionMode ? 'primary' : 'default'"
+            @click="toggleSelectionMode"
+            title="多选模式"
+        >
+            ☑️
+        </el-button>
+        <el-button
+            circle
+            @click="selectAllImages"
+            :disabled="!selectionMode || filteredImages.length === 0"
+            :title="isAllSelected ? '取消全选' : '全选'"
+        >
+            ✅
+        </el-button>
+        <el-button
+            circle
+            type="danger"
+            @click="batchDeleteImages"
+            :disabled="!selectionMode || selectedImages.length === 0"
+            :title="`批量删除 (${selectedImages.length})`"
+        >
+            🗑️
+        </el-button>
+    </div>
+</div>
 
         <!--        </div>-->
 
@@ -1153,24 +1269,65 @@
 
 
 // 全选图片
-            const selectAllImages = () => {
-                if (selectedImages.value.length === images.value.length) {
-                    // 如果已经全选，则清空选择
-                    selectedImages.value = [];
-                } else {
-                    // 否则选择所有图片
-                    selectedImages.value = images.value.map(img => img.id);
-                }
-            };
+//             const selectAllImages = () => {
+//                 if (selectedImages.value.length === images.value.length) {
+//                     // 如果已经全选，则清空选择
+//                     selectedImages.value = [];
+//                 } else {
+//                     // 否则选择所有图片
+//                     selectedImages.value = images.value.map(img => img.id);
+//                 }
+//             };
 
 // 添加计算属性显示全选状态（可选）
-            const isAllSelected = computed(() => {
-                return selectionMode.value &&
-                    images.value.length > 0 &&
-                    selectedImages.value.length === images.value.length;
-            });
+//             const isAllSelected = computed(() => {
+//                 return selectionMode.value &&
+//                     images.value.length > 0 &&
+//                     selectedImages.value.length === images.value.length;
+//             });
 
+
+            // 修改全选计算属性，基于筛选后的图片
+const isAllSelected = computed(() => {
+    return selectionMode.value &&
+           filteredImages.value.length > 0 &&
+           selectedImages.value.length === filteredImages.value.length;
+});
+
+// 修改全选函数，基于筛选后的图片
+const selectAllImages = () => {
+    if (selectedImages.value.length === filteredImages.value.length) {
+        // 如果已经全选，则清空选择
+        selectedImages.value = [];
+    } else {
+        // 否则选择所有筛选后的图片
+        selectedImages.value = filteredImages.value.map(img => img.id);
+    }
+};
             //duoxuan end
+
+
+
+            // 只看收藏start
+// 添加收藏筛选状态
+const showFavoritesOnly = ref(false);
+
+// 计算筛选后的图片列表
+const filteredImages = computed(() => {
+    if (showFavoritesOnly.value) {
+        return images.value.filter(img => img.is_favorited);
+    }
+    return images.value;
+});
+
+// 切换收藏筛选
+const toggleFavoriteFilter = () => {
+    showFavoritesOnly.value = !showFavoritesOnly.value;
+    // 切换筛选时清空选择状态
+    selectedImages.value = [];
+};
+
+            // 只看收藏end
 
             return {
                 currentView, albums, images, currentAlbum, currentImage,
@@ -1192,6 +1349,9 @@
                 batchDeleteImages,
                 selectAllImages,
                 isAllSelected,
+                  showFavoritesOnly,
+    filteredImages,
+    toggleFavoriteFilter,
             };
         }
     }).use(ElementPlus).mount('#app');
