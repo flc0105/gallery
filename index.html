@@ -539,6 +539,24 @@
             }
         }
 
+
+        /* EXIF信息样式 */
+        .exif-container {
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .exif-value {
+            word-break: break-all;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+
+        .exif-loading {
+            padding: 20px;
+            text-align: center;
+        }
+
     </style>
 </head>
 <body>
@@ -804,6 +822,7 @@
                         <div class="action-buttons">
                             <el-button type="primary" @click="downloadImage(currentImage.id)">下载原图</el-button>
                             <el-button type="primary" @click="setAsCover(currentImage.id)">设为封面</el-button>
+                            <el-button type="primary" @click="showImageExif(currentImage.id)">查看EXIF信息</el-button>
 
 
                         </div>
@@ -890,6 +909,30 @@
             </el-upload>
             <template #footer>
                 <el-button @click="showUploadDialog = false">关闭</el-button>
+            </template>
+        </el-dialog>
+
+        <!-- 添加EXIF信息对话框 -->
+        <el-dialog v-model="showExifDialog" title="图片EXIF信息" width="700px">
+            <div v-if="exifData" class="exif-container">
+                <el-table :data="exifTableData" stripe style="width: 100%">
+                    <el-table-column prop="key" label="属性" width="200">
+                        <template #default="scope">
+                            <strong>{{ scope.row.key }}</strong>
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="value" label="值">
+                        <template #default="scope">
+                            <span class="exif-value">{{ scope.row.value }}</span>
+                        </template>
+                    </el-table-column>
+                </el-table>
+            </div>
+            <div v-else class="exif-loading">
+                <el-skeleton :rows="5" animated/>
+            </div>
+            <template #footer>
+                <el-button @click="showExifDialog = false">关闭</el-button>
             </template>
         </el-dialog>
 
@@ -1719,6 +1762,63 @@
 
             //end
 
+
+            //exif start
+
+            // 添加EXIF相关状态
+            const showExifDialog = ref(false);
+            const exifData = ref(null);
+            const currentExifImageId = ref(null);
+
+// EXIF表格数据
+            const exifTableData = computed(() => {
+                if (!exifData.value) return [];
+
+                const tableData = [];
+                const flattenObject = (obj, prefix = '') => {
+                    for (const key in obj) {
+                        if (obj.hasOwnProperty(key)) {
+                            const fullKey = prefix ? `${prefix}.${key}` : key;
+                            const value = obj[key];
+
+                            if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                                flattenObject(value, fullKey);
+                            } else {
+                                tableData.push({
+                                    key: fullKey,
+                                    value: Array.isArray(value) ? JSON.stringify(value) : String(value)
+                                });
+                            }
+                        }
+                    }
+                };
+
+                flattenObject(exifData.value);
+                return tableData.sort((a, b) => a.key.localeCompare(b.key));
+            });
+
+// 显示图片EXIF信息
+            const showImageExif = async (imageId) => {
+                showExifDialog.value = true;
+                currentExifImageId.value = imageId;
+                exifData.value = null;
+
+                try {
+                    const response = await fetch(`/api/images/${imageId}/exif`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        exifData.value = data.exif || {};
+                    } else {
+                        ElMessage.error('获取EXIF信息失败');
+                    }
+                } catch (error) {
+                    ElMessage.error('获取EXIF信息失败');
+                }
+            };
+
+
+            //end
+
             return {
                 currentView, albums, images, currentAlbum, currentImage,
                 showCreateAlbumDialog, showEditAlbumDialog, showUploadDialog,
@@ -1747,7 +1847,11 @@
                 setAlbumPassword,
                 removeAlbumPassword,
                 checkAlbumAccess,
-                editImageDescription
+                editImageDescription,
+                showExifDialog,
+                exifData,
+                exifTableData,
+                showImageExif,
             };
         }
     })

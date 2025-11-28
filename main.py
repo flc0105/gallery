@@ -124,6 +124,7 @@ def generate_compressed(image_path, output_path, max_size=1200):
 
         img.save(output_path, 'JPEG', quality=80)
 
+
 # API路由
 
 # 获取所有相册
@@ -244,8 +245,7 @@ def delete_album(album_id):
 def get_album_images(album_id):
     conn = get_db_connection()
 
-
-    #mima
+    # mima
     password_record = conn.execute(
         'SELECT id FROM album_passwords WHERE album_id = ?', (album_id,)
     ).fetchone()
@@ -257,9 +257,6 @@ def get_album_images(album_id):
         if not auth_token or not verify_auth_token(auth_token, album_id):
             conn.close()
             return jsonify({'error': '无权访问此加密相册'}), 403
-
-
-
 
     images = conn.execute('''
         SELECT * FROM images WHERE album_id = ? ORDER BY uploaded_at DESC
@@ -295,7 +292,6 @@ def verify_auth_token(token, album_id):
         return True
     except:
         return False
-
 
 
 # 生成token的函数
@@ -460,7 +456,6 @@ def get_image_file(image_id):
     #         return jsonify({'error': '无权访问此加密相册'}), 403
     #
     # conn.close()
-
 
     # 获取文件路径
     original_path = os.path.join(UPLOAD_FOLDER, image['filename'])
@@ -684,6 +679,118 @@ def update_image_description(image_id):
     conn.close()
 
     return jsonify({'message': '描述更新成功'})
+
+
+# exif
+import subprocess
+import json
+import os
+
+
+# 获取图片EXIF信息
+# @app.route('/api/images/<int:image_id>/exif', methods=['GET'])
+# def get_image_exif(image_id):
+#     conn = get_db_connection()
+#     image = conn.execute('SELECT * FROM images WHERE id = ?', (image_id,)).fetchone()
+#
+#     if not image:
+#         conn.close()
+#         return jsonify({'error': '图片不存在'}), 404
+#
+#
+#     conn.close()
+#
+#     # 获取原图路径
+#     original_path = os.path.join(UPLOAD_FOLDER, image['filename'])
+#
+#     if not os.path.exists(original_path):
+#         return jsonify({'error': '原图文件不存在'}), 404
+#
+#     try:
+#         # 使用exiftool获取EXIF信息
+#         result = subprocess.run(
+#             ['exiftool', '-j', '-s', '-EXIF:All', original_path],
+#             capture_output=True,
+#             text=True,
+#             check=True
+#         )
+#
+#         exif_info = json.loads(result.stdout)
+#         if exif_info and len(exif_info) > 0:
+#             return jsonify({'exif': exif_info[0]})
+#         else:
+#             return jsonify({'exif': {}})
+#
+#     except subprocess.CalledProcessError as e:
+#         return jsonify({'error': f'exiftool执行失败: {e.stderr}'}), 500
+#     except FileNotFoundError:
+#         return jsonify({'error': 'exiftool未安装或未在PATH中'}), 500
+#     except json.JSONDecodeError:
+#         return jsonify({'error': 'EXIF数据解析失败'}), 500
+#     except Exception as e:
+#         return jsonify({'error': f'获取EXIF信息失败: {str(e)}'}), 500
+#
+
+@app.route('/api/images/<int:image_id>/exif', methods=['GET'])
+def get_image_exif_simple(image_id):
+    conn = get_db_connection()
+    image = conn.execute('SELECT * FROM images WHERE id = ?', (image_id,)).fetchone()
+
+    if not image:
+        conn.close()
+        return jsonify({'error': '图片不存在'}), 404
+
+    conn.close()
+
+    # 获取原图路径
+    original_path = os.path.join(UPLOAD_FOLDER, image['filename'])
+
+    if not os.path.exists(original_path):
+        return jsonify({'error': '原图文件不存在'}), 404
+
+    try:
+        # 定义精简的EXIF字段
+        simple_fields = [
+            'Make', 'Model', 'LensModel', 'DateTimeOriginal',
+            'FocalLength', 'FNumber', 'ExposureTime', 'ISO',
+            'ExposureCompensation', 'ExposureProgram', 'Flash',
+            'MeteringMode', 'WhiteBalance', 'Software'
+        ]
+
+        # 构建命令获取指定字段
+        cmd = ['exiftool', '-j', '-s']
+        for field in simple_fields:
+            cmd.append(f'-{field}')
+        cmd.append(original_path)
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+
+        exif_info = json.loads(result.stdout)
+
+        if exif_info and len(exif_info) > 0:
+            # 过滤掉空值
+            filtered_exif = {}
+            for key, value in exif_info[0].items():
+                if value is not None and value != '':
+                    filtered_exif[key] = value
+            return jsonify({'exif': filtered_exif})
+        else:
+            return jsonify({'exif': {}})
+
+    except subprocess.CalledProcessError as e:
+        return jsonify({'error': f'exiftool执行失败: {e.stderr}'}), 500
+    except FileNotFoundError:
+        return jsonify({'error': 'exiftool未安装或未在PATH中'}), 500
+    except json.JSONDecodeError:
+        return jsonify({'error': 'EXIF数据解析失败'}), 500
+    except Exception as e:
+        return jsonify({'error': f'获取EXIF信息失败: {str(e)}'}), 500
+
 
 if __name__ == '__main__':
     init_db()
