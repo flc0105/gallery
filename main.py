@@ -119,7 +119,8 @@ def generate_compressed(image_path, output_path, max_size=1200):
 def get_albums():
     conn = get_db_connection()
     albums = conn.execute('''
-        SELECT a.*, i.filename as cover_filename 
+        SELECT a.*, i.filename as cover_filename,
+        (SELECT COUNT(*) FROM images WHERE album_id = a.id) as image_count
         FROM albums a 
         LEFT JOIN images i ON a.cover_image_id = i.id
     ''').fetchall()
@@ -331,6 +332,15 @@ def delete_image(image_id):
     conn.close()
     return jsonify({'message': '图片删除成功'})
 
+
+# 获取相册图片数量
+@app.route('/api/albums/<int:album_id>/image-count')
+def get_album_image_count(album_id):
+    conn = get_db_connection()
+    count = conn.execute('SELECT COUNT(*) as count FROM images WHERE album_id = ?', (album_id,)).fetchone()
+    conn.close()
+
+    return jsonify({'count': count['count']})
 
 # 获取图片文件
 # @app.route('/api/images/<int:image_id>/file')
