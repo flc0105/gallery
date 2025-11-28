@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://unpkg.com/element-plus"></script>
+    <script src="//unpkg.com/@element-plus/icons-vue"></script>
     <style>
 
         .album-actions .el-button {
@@ -519,21 +520,24 @@
                 <div v-for="album in albums" :key="album.id" class="album-card" @click="openAlbum(album.id)">
 
 
-                    <div class="album-cover" v-if="album.has_password && !checkAlbumAccess(album.id)" style="display: flex; align-items: center; justify-content: center;">
+                    <div class="album-cover" v-if="album.has_password && !checkAlbumAccess(album.id)"
+                         style="display: flex; align-items: center; justify-content: center;">
                         已锁定
                     </div>
 
                     <div v-else>
-                        <img v-if="album.cover_filename" :src="`/api/images/${album.cover_image_id}/file?type=thumbnail`"
-                         :alt="album.name" class="album-cover">
-                    <div v-else class="album-cover"
-                         style="display: flex; align-items: center; justify-content: center;">
-                        <span>暂无封面</span>
-                    </div>
+                        <img v-if="album.cover_filename"
+                             :src="`/api/images/${album.cover_image_id}/file?type=thumbnail`"
+                             :alt="album.name" class="album-cover">
+                        <div v-else class="album-cover"
+                             style="display: flex; align-items: center; justify-content: center;">
+                            <span>暂无封面</span>
+                        </div>
                     </div>
 
                     <div class="album-info">
-                        <div class="album-name">{{ album.name }}<span v-if="album.has_password"> [加密]</span></div>
+                        <div class="album-name">{{ album.name }}<span v-if="album.has_password"> <el-icon><Lock/></el-icon></span>
+                        </div>
                         <div class="album-meta">
                             <div>图片: {{ getAlbumImageCount(album.id) }}</div>
                             <div>创建: {{ formatDate(album.created_at) }}</div>
@@ -555,39 +559,6 @@
                     <el-button @click="showEditAlbumDialog = true">编辑相册</el-button>
                     <el-button @click="showUploadDialog = true">上传图片</el-button>
 
-
-                    <!--                     <el-button-->
-                    <!--        @click="toggleFavoriteFilter"-->
-                    <!--        :type="showFavoritesOnly ? 'warning' : 'default'"-->
-                    <!--    >-->
-                    <!--        {{ showFavoritesOnly ? '显示全部' : '只看收藏' }}-->
-                    <!--    </el-button>-->
-
-                    <!--                    <el-button-->
-                    <!--                            @click="toggleSelectionMode"-->
-                    <!--                            :type="selectionMode ? 'primary' : 'default'"-->
-                    <!--                    >-->
-                    <!--                        多选-->
-                    <!--                    </el-button>-->
-
-                    <!--                    <el-button-->
-                    <!--                            @click="selectAllImages"-->
-                    <!--                            v-if="selectionMode"-->
-                    <!--                            :disabled="images.length === 0"-->
-                    <!--                    >-->
-                    <!--                        {{ isAllSelected ? '取消全选' : '全选' }}-->
-
-                    <!--                    </el-button>-->
-                    <!--                    <el-button-->
-                    <!--                            type="danger"-->
-                    <!--                            :disabled="selectedImages.length === 0"-->
-                    <!--                            @click="batchDeleteImages"-->
-                    <!--                            v-if="selectionMode"-->
-                    <!--                    >-->
-                    <!--                        批量删除 ({{ selectedImages.length }})-->
-                    <!--                    </el-button>-->
-
-
                     <el-button type="danger" @click="deleteAlbum(currentAlbum.id)">删除相册</el-button>
                 </div>
             </div>
@@ -602,28 +573,6 @@
             <div v-if="images.length === 0" class="empty-state">
                 <p>这个相册还没有图片，上传一些吧！</p>
             </div>
-
-            <!--            <div class="image-grid" v-else>-->
-            <!--                <div v-for="image in images" :key="image.id" class="image-item" @click="viewImage(image.id)">-->
-            <!--                    <img :src="`/api/images/${image.id}/file?type=thumbnail`" :alt="image.original_filename"-->
-            <!--                         class="image-thumb">-->
-            <!--                    <div class="image-actions" :class="{ 'always-visible': image.is_favorited }">-->
-
-            <!--                        <button-->
-            <!--                                class="action-button"-->
-            <!--                                :class="{ 'favorited': image.is_favorited }"-->
-            <!--                                @click.stop="toggleFavorite(image.id)"-->
-            <!--                                :title="image.is_favorited ? '取消收藏' : '收藏'"-->
-            <!--                        >-->
-            <!--                            {{ image.is_favorited ? '⭐' : '☆' }}-->
-            <!--                        </button>-->
-            <!--                        &lt;!&ndash;                        <button class="action-button" @click.stop="setAsCover(image.id)" title="设为封面">⭐</button>&ndash;&gt;-->
-            <!--                        <button class="action-button" @click.stop="deleteImage(image.id)" title="删除图片">🗑️</button>-->
-            <!--                    </div>-->
-            <!--                </div>-->
-            <!--            </div>-->
-
-
             <div class="image-grid" v-else><!-- images改为filteredImages -->
                 <div
 
@@ -635,7 +584,7 @@
                         @click="handleImageClick(image.id)"
                 >
                     <div class="selection-checkbox" v-if="selectionMode && selectedImages.includes(image.id)">
-                        <span>✅</span>
+                        ✅
                     </div>
                     <img
                             :src="`/api/images/${image.id}/file?type=thumbnail`"
@@ -650,6 +599,8 @@
                                 :title="image.is_favorited ? '取消收藏' : '收藏'"
                         >
                             {{ image.is_favorited ? '⭐' : '☆' }}
+
+
                         </button>
                         <!--                        <button class="action-button" @click.stop="deleteImage(image.id)" title="删除图片">🗑️</button>-->
                     </div>
@@ -668,7 +619,9 @@
                     @click="toggleFavoriteFilter"
                     :title="showFavoritesOnly ? '显示全部' : '只看收藏'"
             >
-                🌟
+                <el-icon>
+                    <Star/>
+                </el-icon>
             </el-button>
             <el-button
                     circle
@@ -676,7 +629,9 @@
                     @click="toggleSelectionMode"
                     title="多选模式"
             >
-                ☑️
+                <el-icon>
+                    <Check/>
+                </el-icon>
             </el-button>
             <el-button
                     circle
@@ -684,7 +639,11 @@
                     :disabled="!selectionMode || filteredImages.length === 0"
                     :title="isAllSelected ? '取消全选' : '全选'"
             >
-                ✅
+
+
+                <el-icon>
+                    <Finished/>
+                </el-icon>
             </el-button>
             <el-button
                     circle
@@ -693,7 +652,9 @@
                     :disabled="!selectionMode || selectedImages.length === 0"
                     :title="`批量删除 (${selectedImages.length})`"
             >
-                🗑️
+                <el-icon>
+                    <Delete/>
+                </el-icon>
             </el-button>
         </div>
 
@@ -722,7 +683,9 @@
                                 @click="toggleFavorite(currentImage.id)"
                                 :title="currentImage.is_favorited ? '取消收藏' : '收藏'"
                         >
-                            🌟
+                            <el-icon>
+                                <Star/>
+                            </el-icon>
                         </el-button>
                         <el-button
                                 circle
@@ -730,7 +693,9 @@
                                 @click="deleteImage(currentImage.id)"
                                 title="删除图片"
                         >
-                            🗑️
+                            <el-icon>
+                                <Delete/>
+                            </el-icon>
                         </el-button>
                     </div>
 
@@ -869,8 +834,12 @@
 <script>
     const {createApp, ref, onMounted, computed, watch} = Vue;
     const {ElMessage, ElMessageBox} = ElementPlus;
+    const {Star, Select} = ElementPlusIconsVue;
 
-    createApp({
+    console.log(ElementPlusIconsVue.Select);
+
+
+    const app = createApp({
         setup() {
 
             const currentView = ref('albums');
@@ -1368,10 +1337,10 @@
 
             // mima start
 
-         // 添加密码管理状态
+            // 添加密码管理状态
             const passwordEnabled = ref(false);
             const newPassword = ref('');
-         // 添加相册验证状态
+            // 添加相册验证状态
             const albumAccessTokens = ref({});
             // 处理密码开关
             const handlePasswordToggle = (enabled) => {
@@ -1501,7 +1470,6 @@
             };
 
 
-
             // 检查相册访问权限
             const checkAlbumAccess = (albumId) => {
                 const token = albumAccessTokens.value[albumId];
@@ -1550,10 +1518,15 @@
                 handlePasswordToggle,
                 setAlbumPassword,
                 removeAlbumPassword,
-                checkAlbumAccess,
+                checkAlbumAccess, Select
             };
         }
-    }).use(ElementPlus).mount('#app');
+    })
+
+    for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+        app.component(key, component)
+    }
+    app.use(ElementPlus).mount('#app');
 </script>
 </body>
 </html>
