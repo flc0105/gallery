@@ -124,7 +124,6 @@ def generate_compressed(image_path, output_path, max_size=1200):
 
         img.save(output_path, 'JPEG', quality=80)
 
-
 # API路由
 
 # 获取所有相册
@@ -244,12 +243,66 @@ def delete_album(album_id):
 @app.route('/api/albums/<int:album_id>/images', methods=['GET'])
 def get_album_images(album_id):
     conn = get_db_connection()
+
+
+    #mima
+    password_record = conn.execute(
+        'SELECT id FROM album_passwords WHERE album_id = ?', (album_id,)
+    ).fetchone()
+
+    # 如果有密码，验证访问权限
+    if password_record:
+        # 检查请求头中是否有验证token
+        auth_token = request.headers.get('X-Album-Auth')
+        if not auth_token or not verify_auth_token(auth_token, album_id):
+            conn.close()
+            return jsonify({'error': '无权访问此加密相册'}), 403
+
+
+
+
     images = conn.execute('''
         SELECT * FROM images WHERE album_id = ? ORDER BY uploaded_at DESC
     ''', (album_id,)).fetchall()
     conn.close()
 
     return jsonify([dict(image) for image in images])
+
+
+# 验证token的函数
+def verify_auth_token(token, album_id):
+    """验证相册访问token"""
+    if not token or not token.startswith('album_'):
+        return False
+
+    try:
+        # 解析token格式: album_{album_id}_verified_{timestamp}
+        parts = token.split('_')
+        if len(parts) < 3:
+            return False
+
+        token_album_id = int(parts[1])
+        if token_album_id != album_id:
+            return False
+
+        # 检查token是否过期（5分钟）
+        if len(parts) >= 4:
+            token_time = int(parts[3])
+            current_time = int(datetime.now().timestamp())
+            if current_time - token_time > 30 * 60:  # 30分钟过期
+                return False
+
+        return True
+    except:
+        return False
+
+
+
+# 生成token的函数
+def generate_auth_token(album_id):
+    """生成相册访问token"""
+    timestamp = int(datetime.now().timestamp())
+    return f"album_{album_id}_verified_{timestamp}"
 
 
 # 添加收藏API
@@ -393,6 +446,22 @@ def get_image_file(image_id):
     if not image:
         return jsonify({'error': '图片不存在'}), 404
 
+    # # 检查图片所在相册是否有密码
+    # album_id = image['album_id']
+    # password_record = conn.execute(
+    #     'SELECT id FROM album_passwords WHERE album_id = ?', (album_id,)
+    # ).fetchone()
+    #
+    # # 如果有密码，验证访问权限
+    # if password_record:
+    #     auth_token = request.headers.get('X-Album-Auth')
+    #     if not auth_token or not verify_auth_token(auth_token, album_id):
+    #         conn.close()
+    #         return jsonify({'error': '无权访问此加密相册'}), 403
+    #
+    # conn.close()
+
+
     # 获取文件路径
     original_path = os.path.join(UPLOAD_FOLDER, image['filename'])
     thumb_path = os.path.join(THUMBNAIL_FOLDER, image['filename'])
@@ -504,11 +573,14 @@ def verify_album_password(album_id):
         return jsonify({'error': '此相册未设置密码'}), 400
 
     # 简单密码验证（实际应该使用加密哈希）
+    token = generate_auth_token(album_id)
+
     if password_record['password_hash'] == password:
         return jsonify({
             'success': True,
             'message': '密码验证成功',
-            'token': f'album_{album_id}_verified'
+            'token': token,
+            # 'token': f'album_{album_id}_verified'
         })
     else:
         return jsonify({'error': '密码错误'}), 401
