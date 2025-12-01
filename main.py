@@ -574,6 +574,74 @@ def check_album_password(album_id):
 
     return jsonify({'has_password': password_record is not None})
 
+#标题
+# 在album.py或者主文件中添加
+@app.route('/api/albums/title', methods=['PUT'])
+def update_site_title():
+    data = request.get_json()
+    new_title = data.get('title', '').strip()
+
+    if not new_title:
+        return jsonify({'error': '标题不能为空'}), 400
+
+    # 这里可以将标题保存到数据库或者配置文件中
+    # 为了方便，我们可以创建一个配置表，这里简化处理
+    # 实际项目中可以创建一个config表来存储站点配置
+    try:
+        # 保存到数据库config表（需要先创建这个表）
+        conn = get_db_connection()
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS site_config (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT UNIQUE NOT NULL,
+                value TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        # 插入或更新标题
+        conn.execute('''
+            INSERT OR REPLACE INTO site_config (key, value) 
+            VALUES (?, ?)
+        ''', ('site_title', new_title))
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({'message': '标题更新成功', 'title': new_title})
+    except Exception as e:
+        return jsonify({'error': f'更新标题失败: {str(e)}'}), 500
+
+
+# 添加获取标题的API
+@app.route('/api/albums/title', methods=['GET'])
+def get_site_title():
+    try:
+        conn = get_db_connection()
+        # 确保表存在
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS site_config (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT UNIQUE NOT NULL,
+                value TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+
+        title_record = conn.execute(
+            'SELECT value FROM site_config WHERE key = ?', ('site_title',)
+        ).fetchone()
+
+        conn.close()
+
+        default_title = '在线图库'
+        if title_record and title_record['value']:
+            return jsonify({'title': title_record['value']})
+        else:
+            return jsonify({'title': default_title})
+    except Exception as e:
+        return jsonify({'title': '在线图库'})
+
 
 if __name__ == '__main__':
     init_db()

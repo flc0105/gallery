@@ -565,7 +565,9 @@
         <!-- 相册列表页面 -->
         <div v-if="currentView === 'albums'">
             <div class="header">
-                <h1>我的相册</h1>
+                <h1 @dblclick="editSiteTitle" class="site-title">
+                    {{ siteTitle }}
+                </h1>
                 <el-button type="primary" @click="showCreateAlbumDialog = true">新建相册</el-button>
             </div>
 
@@ -632,7 +634,7 @@
                 </p>
                 <p v-if="currentAlbum.model_name"><strong>模特:</strong> {{ currentAlbum.model_name }}</p>
                 <p v-if="currentAlbum.location"><strong>地点:</strong> {{ currentAlbum.location }}</p>
-                 <p v-if="currentAlbum.description"><strong>描述:</strong> {{ currentAlbum.description }}</p>
+                <p v-if="currentAlbum.description"><strong>描述:</strong> {{ currentAlbum.description }}</p>
             </div>
 
             <div v-if="images.length === 0" class="empty-state">
@@ -875,7 +877,8 @@
                     <el-input v-model="currentAlbum.location" placeholder="请输入拍摄地点"></el-input>
                 </el-form-item>
                 <el-form-item label="描述">
-                    <el-input v-model="currentAlbum.description" type="textarea" placeholder="请输入相册描述"></el-input>
+                    <el-input v-model="currentAlbum.description" type="textarea"
+                              placeholder="请输入相册描述"></el-input>
                 </el-form-item>
 
 
@@ -925,7 +928,7 @@
                 <el-table :data="exifTableData" stripe style="width: 100%">
                     <el-table-column prop="key" label="属性" width="200">
                         <template #default="scope">
-                           {{ scope.row.key }}
+                            {{ scope.row.key }}
                         </template>
                     </el-table-column>
                     <el-table-column prop="value" label="值">
@@ -943,52 +946,21 @@
             </template>
         </el-dialog>
 
-        <!-- 描述编辑对话框 -->
-        <!--<el-dialog v-model="showDescriptionDialog" title="编辑图片描述" width="500px">-->
-        <!--&lt;!&ndash;    <div style="margin-bottom: 10px;">&ndash;&gt;-->
-        <!--&lt;!&ndash;        <strong>文件名:</strong> {{ editingImage?.original_filename }}&ndash;&gt;-->
-        <!--&lt;!&ndash;    </div>&ndash;&gt;-->
-        <!--&lt;!&ndash;    <el-input&ndash;&gt;-->
-        <!--&lt;!&ndash;        v-model="imageDescription"&ndash;&gt;-->
-        <!--&lt;!&ndash;        type="textarea"&ndash;&gt;-->
-        <!--&lt;!&ndash;        :rows="4"&ndash;&gt;-->
-        <!--&lt;!&ndash;        placeholder="请输入图片描述..."&ndash;&gt;-->
-        <!--&lt;!&ndash;        maxlength="200"&ndash;&gt;-->
-        <!--&lt;!&ndash;        show-word-limit&ndash;&gt;-->
-        <!--&lt;!&ndash;    />&ndash;&gt;-->
 
-        <!--        <el-input-->
-        <!--        v-model="imageDescription"-->
-        <!--        placeholder="请输入图片描述..."-->
-        <!--        maxlength="200"-->
-        <!--        show-word-limit-->
-        <!--    />-->
-
-        <!--    <template #footer>-->
-        <!--        <el-button @click="cancelEditDescription">取消</el-button>-->
-        <!--        <el-button type="primary" @click="saveImageDescription">保存</el-button>-->
-        <!--    </template>-->
-        <!--</el-dialog>-->
     </div>
 </div>
 
 <script>
     const {createApp, ref, onMounted, computed, watch} = Vue;
     const {ElMessage, ElMessageBox} = ElementPlus;
-    const {Star, Select} = ElementPlusIconsVue;
-
-    console.log(ElementPlusIconsVue.Select);
-
 
     const app = createApp({
         setup() {
-
             const currentView = ref('albums');
             const albums = ref([]);
             const images = ref([]);
             const currentAlbum = ref({});
             const currentImage = ref({});
-
 
             const showCreateAlbumDialog = ref(false);
             const showEditAlbumDialog = ref(false);
@@ -1009,11 +981,6 @@
             const hasPrev = computed(() => currentImageIndex.value > 0);
             const hasNext = computed(() => currentImageIndex.value < images.value.length - 1);
 
-            // const getAlbumImageCount = (albumId) => {
-            //     // 简化实现，实际应该从后端获取
-            //     return images.value.filter(img => img.album_id === albumId).length;
-            // };
-
             const getAlbumImageCount = (albumId) => {
                 const album = albums.value.find(a => a.id === albumId);
                 return album ? album.image_count : 0;
@@ -1028,17 +995,6 @@
                 }
             };
 
-            // const loadAlbumImages = async (albumId) => {
-            //     try {
-            //         const response = await fetch(`/api/albums/${albumId}/images`);
-            //         images.value = await response.json();
-            //     } catch (error) {
-            //         ElMessage.error('加载图片失败');
-            //     }
-            // };
-
-
-            // 修改 loadAlbumImages 函数
             const loadAlbumImages = async (albumId) => {
                 try {
                     const headers = {};
@@ -1331,6 +1287,8 @@
 
             onMounted(() => {
                 loadAlbums();
+                    loadSiteTitle();
+
             });
 
 
@@ -1496,25 +1454,6 @@
                     }
                 }
             };
-
-
-// 全选图片
-//             const selectAllImages = () => {
-//                 if (selectedImages.value.length === images.value.length) {
-//                     // 如果已经全选，则清空选择
-//                     selectedImages.value = [];
-//                 } else {
-//                     // 否则选择所有图片
-//                     selectedImages.value = images.value.map(img => img.id);
-//                 }
-//             };
-
-// 添加计算属性显示全选状态（可选）
-//             const isAllSelected = computed(() => {
-//                 return selectionMode.value &&
-//                     images.value.length > 0 &&
-//                     selectedImages.value.length === images.value.length;
-//             });
 
 
             // 修改全选计算属性，基于筛选后的图片
@@ -1827,6 +1766,83 @@
 
             //end
 
+
+
+            // title
+            // 在setup函数中添加相关状态和方法
+const siteTitle = ref('我的相册');
+
+// 加载站点标题
+const loadSiteTitle = async () => {
+    try {
+        const response = await fetch('/api/albums/title');
+        const data = await response.json();
+        siteTitle.value = data.title || '我的相册';
+        // 更新网页标题
+        document.title = siteTitle.value;
+    } catch (error) {
+        console.error('加载站点标题失败:', error);
+    }
+};
+
+// 编辑站点标题（使用ElMessageBox.prompt）
+const editSiteTitle = async () => {
+    try {
+        const { value } = await ElMessageBox.prompt('请输入新的站点标题', '修改站点标题', {
+            confirmButtonText: '保存',
+            cancelButtonText: '取消',
+            inputValue: siteTitle.value,
+            inputPlaceholder: '请输入站点标题...',
+            inputValidator: (value) => {
+                if (!value || value.trim() === '') {
+                    return '标题不能为空';
+                }
+                if (value.length > 50) {
+                    return '标题不能超过50个字符';
+                }
+                return true;
+            }
+        });
+
+        if (value !== null && value.trim() !== '' && value !== siteTitle.value) {
+            await saveSiteTitle(value.trim());
+        }
+    } catch (error) {
+        if (error !== 'cancel') {
+            ElMessage.error('操作失败');
+        }
+    }
+};
+
+// 保存站点标题
+const saveSiteTitle = async (newTitle) => {
+    try {
+        const response = await fetch('/api/albums/title', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                title: newTitle
+            })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            siteTitle.value = data.title;
+            // 更新网页标题
+            document.title = siteTitle.value;
+            ElMessage.success('标题更新成功');
+        } else {
+            const errorData = await response.json();
+            ElMessage.error(errorData.error || '更新失败');
+        }
+    } catch (error) {
+        ElMessage.error('更新标题失败');
+    }
+};
+
+
             return {
                 currentView, albums, images, currentAlbum, currentImage,
                 showCreateAlbumDialog, showEditAlbumDialog, showUploadDialog,
@@ -1860,6 +1876,11 @@
                 exifData,
                 exifTableData,
                 showImageExif,
+                    siteTitle,
+    // ... 其他方法
+    loadSiteTitle,
+    editSiteTitle,
+    saveSiteTitle,
             };
         }
     })
