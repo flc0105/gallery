@@ -1,3 +1,4 @@
+import hashlib
 import os
 import sqlite3
 from datetime import datetime
@@ -69,6 +70,7 @@ def init_db():
             width INTEGER,
             height INTEGER,
             description TEXT,
+            file_hash TEXT,
             is_favorited BOOLEAN DEFAULT 0,
             uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (album_id) REFERENCES albums (id)
@@ -319,6 +321,36 @@ def upload_image(album_id):
     if file.filename == '':
         return jsonify({'error': '没有选择文件'}), 400
 
+
+    #md5
+
+    # 计算文件的MD5
+    file_content = file.read()
+    file_md5 = hashlib.md5(file_content).hexdigest()
+
+    # 重置文件指针，以便后续保存
+    file.seek(0)
+
+    # 检查数据库中是否已存在相同MD5的图片
+    conn = get_db_connection()
+
+    # 检查所有相册中是否有相同的图片
+    existing_image = conn.execute('''
+        SELECT i.id, i.original_filename, a.name as album_name 
+        FROM images i 
+        JOIN albums a ON i.album_id = a.id 
+        WHERE i.file_hash = ?
+    ''', (file_md5,)).fetchone()
+
+    if existing_image:
+        conn.close()
+        return jsonify({
+            'error': f'图片已存在于相册 "{existing_image["album_name"]}" 中',
+            'existing_filename': existing_image['original_filename'],
+            'album_name': existing_image['album_name']
+        }), 409  # 409 Conflict
+
+
     # 生成唯一文件名
     filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{file.filename}"
 
@@ -342,9 +374,9 @@ def upload_image(album_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO images (album_id, filename, original_filename, file_size, width, height)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', (album_id, filename, file.filename, file_size, width, height))
+        INSERT INTO images (album_id, filename, original_filename, file_size, width, height, file_hash)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (album_id, filename, file.filename, file_size, width, height, file_md5))
     image_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -634,16 +666,42 @@ def get_site_title():
 
         conn.close()
 
-        default_title = '在线图库'
+        default_title = '我的相册'
         if title_record and title_record['value']:
             return jsonify({'title': title_record['value']})
         else:
             return jsonify({'title': default_title})
     except Exception as e:
-        return jsonify({'title': '在线图库'})
+        return jsonify({'title': '我的相册'})
 
+
+
+
+def add_md5_to_existing_images():
+    """为已有图片计算并添加MD5值（一次性运行）"""
+    conn = get_db_connection()
+    images = conn.execute('SELECT id, filename FROM images WHERE file_hash IS NULL').fetchall()
+
+    for image in images:
+        original_path = os.path.join(UPLOAD_FOLDER, image['filename'])
+        if os.path.exists(original_path):
+            try:
+                with open(original_path, 'rb') as f:
+                    file_content = f.read()
+                    md5_hash = hashlib.md5(file_content).hexdigest()
+
+                conn.execute('UPDATE images SET file_hash = ? WHERE id = ?',
+                             (md5_hash, image['id']))
+                print(f"Updated MD5 for image {image['id']}")
+            except Exception as e:
+                print(f"Error processing image {image['id']}: {e}")
+
+    conn.commit()
+    conn.close()
+    print("MD5 migration completed")
 
 if __name__ == '__main__':
     init_db()
+    # add_md5_to_existing_images()
     app.run(debug=True, host='', port=5000)
     # app.run(debug=True)
