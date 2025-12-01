@@ -6,8 +6,27 @@ from PIL import Image
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 
+from auth_utils import verify_auth_token, generate_auth_token
+from image_utils import generate_thumbnail, generate_compressed, get_image_exif_simple
+
 app = Flask(__name__)
 CORS(app)
+
+
+# 服务前端页面
+@app.route('/')
+def index():
+    return send_file('index.html')
+
+
+# 可选的：服务静态文件（如果需要额外的CSS/JS文件）
+@app.route('/<path:path>')
+def serve_static(path):
+    if os.path.exists(path):
+        return send_file(path)
+    else:
+        return "File not found", 404
+
 
 # 配置
 UPLOAD_FOLDER = 'uploads'
@@ -32,6 +51,7 @@ def init_db():
             name TEXT NOT NULL,
             cover_image_id INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            description TEXT,
             shoot_date TEXT,
             model_name TEXT,
             location TEXT
@@ -48,8 +68,8 @@ def init_db():
             file_size INTEGER,
             width INTEGER,
             height INTEGER,
+            description TEXT,
             is_favorited BOOLEAN DEFAULT 0,
-                        description TEXT,
             uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (album_id) REFERENCES albums (id)
         )
@@ -78,53 +98,6 @@ def get_db_connection():
     return conn
 
 
-def generate_thumbnail(image_path, output_path, size=(250, 250)):
-    with Image.open(image_path) as img:
-        # 转换为RGB模式
-        if img.mode in ('RGBA', 'LA'):
-            background = Image.new('RGB', img.size, (255, 255, 255))
-            background.paste(img, mask=img.split()[-1])
-            img = background
-
-        # 计算裁剪区域，保持居中裁剪
-        width, height = img.size
-        # 选择较短的边作为裁剪尺寸
-        crop_size = min(width, height)
-        # 计算裁剪区域（居中）
-        left = (width - crop_size) // 2
-        top = (height - crop_size) // 2
-        right = left + crop_size
-        bottom = top + crop_size
-
-        # 裁剪为正方形
-        img_cropped = img.crop((left, top, right, bottom))
-        # 调整到目标尺寸
-        img_resized = img_cropped.resize(size, Image.Resampling.LANCZOS)
-        img_resized.save(output_path, 'JPEG', quality=85)
-
-
-# 生成压缩图
-def generate_compressed(image_path, output_path, max_size=1200):
-    with Image.open(image_path) as img:
-        # 转换为RGB模式
-        if img.mode in ('RGBA', 'LA'):
-            background = Image.new('RGB', img.size, (255, 255, 255))
-            background.paste(img, mask=img.split()[-1])
-            img = background
-
-        # 计算新尺寸，保持宽高比
-        if img.width > max_size or img.height > max_size:
-            if img.width > img.height:
-                new_width = max_size
-                new_height = int(img.height * max_size / img.width)
-            else:
-                new_height = max_size
-                new_width = int(img.width * max_size / img.height)
-            img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-
-        img.save(output_path, 'JPEG', quality=80)
-
-
 # API路由
 
 # 获取所有相册
@@ -149,6 +122,7 @@ def get_albums():
 def create_album():
     data = request.get_json()
     name = data.get('name')
+    description = data.get('description')
     shoot_date = data.get('shoot_date')
     model_name = data.get('model_name')
     location = data.get('location')
@@ -159,9 +133,9 @@ def create_album():
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO albums (name,shoot_date, model_name, location)
-        VALUES (?, ?, ?, ?)
-    ''', (name, shoot_date, model_name, location))
+        INSERT INTO albums (name, description, shoot_date, model_name, location)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (name, description, shoot_date, model_name, location))
     album_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -174,6 +148,7 @@ def create_album():
 def update_album(album_id):
     data = request.get_json()
     name = data.get('name')
+    description = data.get('description')
     shoot_date = data.get('shoot_date')
     model_name = data.get('model_name')
     location = data.get('location')
@@ -189,6 +164,9 @@ def update_album(album_id):
     if name is not None:
         update_fields.append("name = ?")
         values.append(name)
+    if description is not None:
+        update_fields.append("description = ?")
+        values.append(description)
     if shoot_date is not None:
         update_fields.append("shoot_date = ?")
         values.append(shoot_date)
@@ -245,11 +223,10 @@ def delete_album(album_id):
 def get_album_images(album_id):
     conn = get_db_connection()
 
-    # mima
+    # 密码验证
     password_record = conn.execute(
         'SELECT id FROM album_passwords WHERE album_id = ?', (album_id,)
     ).fetchone()
-
     # 如果有密码，验证访问权限
     if password_record:
         # 检查请求头中是否有验证token
@@ -266,44 +243,54 @@ def get_album_images(album_id):
     return jsonify([dict(image) for image in images])
 
 
-# 验证token的函数
-def verify_auth_token(token, album_id):
-    """验证相册访问token"""
-    if not token or not token.startswith('album_'):
-        return False
+@app.route('/api/images/<int:image_id>/file')
+def get_image_file(image_id):
+    file_type = request.args.get('type', 'compressed')  # compressed, thumbnail, original
 
-    try:
-        # 解析token格式: album_{album_id}_verified_{timestamp}
-        parts = token.split('_')
-        if len(parts) < 3:
-            return False
+    conn = get_db_connection()
+    image = conn.execute('SELECT * FROM images WHERE id = ?', (image_id,)).fetchone()
+    conn.close()
 
-        token_album_id = int(parts[1])
-        if token_album_id != album_id:
-            return False
+    if not image:
+        return jsonify({'error': '图片不存在'}), 404
 
-        # 检查token是否过期（5分钟）
-        if len(parts) >= 4:
-            token_time = int(parts[3])
-            current_time = int(datetime.now().timestamp())
-            if current_time - token_time > 30 * 60:  # 30分钟过期
-                return False
+    # 获取文件路径
+    original_path = os.path.join(UPLOAD_FOLDER, image['filename'])
+    thumb_path = os.path.join(THUMBNAIL_FOLDER, image['filename'])
+    compressed_path = os.path.join(COMPRESSED_FOLDER, image['filename'])
 
-        return True
-    except:
-        return False
+    if file_type == 'original':
+        file_path = original_path
+    elif file_type == 'thumbnail':
+        file_path = thumb_path
+    else:  # compressed
+        file_path = compressed_path
+
+    # 检查请求的文件是否存在
+    if os.path.exists(file_path):
+        return send_file(file_path)
+
+    # 如果请求的文件不存在，但原图存在，重新生成
+    if file_type != 'original' and os.path.exists(original_path):
+        try:
+            if file_type == 'thumbnail':
+                generate_thumbnail(original_path, thumb_path)
+            else:  # compressed
+                generate_compressed(original_path, compressed_path)
+
+            # 检查是否生成成功
+            if os.path.exists(file_path):
+                return send_file(file_path)
+        except Exception as e:
+            # 生成失败，返回错误
+            return jsonify({'error': f'文件生成失败: {str(e)}'}), 500
+
+    # 其他情况返回文件不存在
+    return jsonify({'error': '文件不存在'}), 404
 
 
-# 生成token的函数
-def generate_auth_token(album_id):
-    """生成相册访问token"""
-    timestamp = int(datetime.now().timestamp())
-    return f"album_{album_id}_verified_{timestamp}"
-
-
-# 添加收藏API
-@app.route('/api/images/<int:image_id>/favorite', methods=['POST'])
-def toggle_favorite(image_id):
+@app.route('/api/images/<int:image_id>/exif', methods=['GET'])
+def get_image_exif(image_id):
     conn = get_db_connection()
     image = conn.execute('SELECT * FROM images WHERE id = ?', (image_id,)).fetchone()
 
@@ -311,17 +298,15 @@ def toggle_favorite(image_id):
         conn.close()
         return jsonify({'error': '图片不存在'}), 404
 
-    # 切换收藏状态
-    new_favorite_state = not image['is_favorited']
-    conn.execute('UPDATE images SET is_favorited = ? WHERE id = ?',
-                 (new_favorite_state, image_id))
-    conn.commit()
     conn.close()
 
-    return jsonify({
-        'is_favorited': new_favorite_state,
-        'message': '操作成功'
-    })
+    # 获取原图路径
+    original_path = os.path.join(UPLOAD_FOLDER, image['filename'])
+
+    if not os.path.exists(original_path):
+        return jsonify({'error': '原图文件不存在'}), 404
+
+    return jsonify({'exif': get_image_exif_simple(original_path)})
 
 
 # 上传图片到相册
@@ -372,141 +357,6 @@ def upload_image(album_id):
     })
 
 
-# 删除图片
-@app.route('/api/images/<int:image_id>', methods=['DELETE'])
-def delete_image(image_id):
-    conn = get_db_connection()
-
-    # 获取图片信息
-    image = conn.execute('SELECT * FROM images WHERE id = ?', (image_id,)).fetchone()
-
-    if image:
-        # 删除文件
-        original_path = os.path.join(UPLOAD_FOLDER, image['filename'])
-        thumb_path = os.path.join(THUMBNAIL_FOLDER, image['filename'])
-        compressed_path = os.path.join(COMPRESSED_FOLDER, image['filename'])
-
-        for path in [original_path, thumb_path, compressed_path]:
-            if os.path.exists(path):
-                os.remove(path)
-
-        # 删除数据库记录
-        conn.execute('DELETE FROM images WHERE id = ?', (image_id,))
-        conn.commit()
-
-    conn.close()
-    return jsonify({'message': '图片删除成功'})
-
-
-# 获取相册图片数量
-@app.route('/api/albums/<int:album_id>/image-count')
-def get_album_image_count(album_id):
-    conn = get_db_connection()
-    count = conn.execute('SELECT COUNT(*) as count FROM images WHERE album_id = ?', (album_id,)).fetchone()
-    conn.close()
-
-    return jsonify({'count': count['count']})
-
-
-# 获取图片文件
-# @app.route('/api/images/<int:image_id>/file')
-# def get_image_file(image_id):
-#     file_type = request.args.get('type', 'compressed')  # compressed, thumbnail, original
-#
-#     conn = get_db_connection()
-#     image = conn.execute('SELECT * FROM images WHERE id = ?', (image_id,)).fetchone()
-#     conn.close()
-#
-#     if not image:
-#         return jsonify({'error': '图片不存在'}), 404
-#
-#     if file_type == 'original':
-#         file_path = os.path.join(UPLOAD_FOLDER, image['filename'])
-#     elif file_type == 'thumbnail':
-#         file_path = os.path.join(THUMBNAIL_FOLDER, image['filename'])
-#     else:  # compressed
-#         file_path = os.path.join(COMPRESSED_FOLDER, image['filename'])
-#
-#     if not os.path.exists(file_path):
-#         return jsonify({'error': '文件不存在'}), 404
-#
-#     return send_file(file_path)
-@app.route('/api/images/<int:image_id>/file')
-def get_image_file(image_id):
-    file_type = request.args.get('type', 'compressed')  # compressed, thumbnail, original
-
-    conn = get_db_connection()
-    image = conn.execute('SELECT * FROM images WHERE id = ?', (image_id,)).fetchone()
-    conn.close()
-
-    if not image:
-        return jsonify({'error': '图片不存在'}), 404
-
-    # # 检查图片所在相册是否有密码
-    # album_id = image['album_id']
-    # password_record = conn.execute(
-    #     'SELECT id FROM album_passwords WHERE album_id = ?', (album_id,)
-    # ).fetchone()
-    #
-    # # 如果有密码，验证访问权限
-    # if password_record:
-    #     auth_token = request.headers.get('X-Album-Auth')
-    #     if not auth_token or not verify_auth_token(auth_token, album_id):
-    #         conn.close()
-    #         return jsonify({'error': '无权访问此加密相册'}), 403
-    #
-    # conn.close()
-
-    # 获取文件路径
-    original_path = os.path.join(UPLOAD_FOLDER, image['filename'])
-    thumb_path = os.path.join(THUMBNAIL_FOLDER, image['filename'])
-    compressed_path = os.path.join(COMPRESSED_FOLDER, image['filename'])
-
-    if file_type == 'original':
-        file_path = original_path
-    elif file_type == 'thumbnail':
-        file_path = thumb_path
-    else:  # compressed
-        file_path = compressed_path
-
-    # 检查请求的文件是否存在
-    if os.path.exists(file_path):
-        return send_file(file_path)
-
-    # 如果请求的文件不存在，但原图存在，重新生成
-    if file_type != 'original' and os.path.exists(original_path):
-        try:
-            if file_type == 'thumbnail':
-                generate_thumbnail(original_path, thumb_path)
-            else:  # compressed
-                generate_compressed(original_path, compressed_path)
-
-            # 检查是否生成成功
-            if os.path.exists(file_path):
-                return send_file(file_path)
-        except Exception as e:
-            # 生成失败，返回错误
-            return jsonify({'error': f'文件生成失败: {str(e)}'}), 500
-
-    # 其他情况返回文件不存在
-    return jsonify({'error': '文件不存在'}), 404
-
-
-# 服务前端页面
-@app.route('/')
-def index():
-    return send_file('index.html')
-
-
-# 可选的：服务静态文件（如果需要额外的CSS/JS文件）
-@app.route('/<path:path>')
-def serve_static(path):
-    if os.path.exists(path):
-        return send_file(path)
-    else:
-        return "File not found", 404
-
-
 @app.route('/api/images/<int:image_id>/rename', methods=['POST'])
 def rename_image(image_id):
     data = request.get_json()
@@ -538,7 +388,77 @@ def rename_image(image_id):
     return jsonify({'message': '重命名成功'})
 
 
-# mima start
+# 更新图片描述API
+@app.route('/api/images/<int:image_id>/description', methods=['PUT'])
+def update_image_description(image_id):
+    data = request.get_json()
+    description = data.get('description', '')
+
+    conn = get_db_connection()
+
+    # 检查图片是否存在
+    image = conn.execute('SELECT * FROM images WHERE id = ?', (image_id,)).fetchone()
+    if not image:
+        conn.close()
+        return jsonify({'error': '图片不存在'}), 404
+
+    # 更新描述
+    conn.execute('UPDATE images SET description = ? WHERE id = ?',
+                 (description, image_id))
+    conn.commit()
+    conn.close()
+
+    return jsonify({'message': '描述更新成功'})
+
+
+# 添加收藏
+@app.route('/api/images/<int:image_id>/favorite', methods=['POST'])
+def toggle_favorite(image_id):
+    conn = get_db_connection()
+    image = conn.execute('SELECT * FROM images WHERE id = ?', (image_id,)).fetchone()
+
+    if not image:
+        conn.close()
+        return jsonify({'error': '图片不存在'}), 404
+
+    # 切换收藏状态
+    new_favorite_state = not image['is_favorited']
+    conn.execute('UPDATE images SET is_favorited = ? WHERE id = ?',
+                 (new_favorite_state, image_id))
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        'is_favorited': new_favorite_state,
+        'message': '操作成功'
+    })
+
+
+# 删除图片
+@app.route('/api/images/<int:image_id>', methods=['DELETE'])
+def delete_image(image_id):
+    conn = get_db_connection()
+
+    # 获取图片信息
+    image = conn.execute('SELECT * FROM images WHERE id = ?', (image_id,)).fetchone()
+
+    if image:
+        # 删除文件
+        original_path = os.path.join(UPLOAD_FOLDER, image['filename'])
+        thumb_path = os.path.join(THUMBNAIL_FOLDER, image['filename'])
+        compressed_path = os.path.join(COMPRESSED_FOLDER, image['filename'])
+
+        for path in [original_path, thumb_path, compressed_path]:
+            if os.path.exists(path):
+                os.remove(path)
+
+        # 删除数据库记录
+        conn.execute('DELETE FROM images WHERE id = ?', (image_id,))
+        conn.commit()
+
+    conn.close()
+    return jsonify({'message': '图片删除成功'})
+
 
 # 验证相册密码API
 @app.route('/api/albums/<int:album_id>/verify-password', methods=['POST'])
@@ -575,7 +495,6 @@ def verify_album_password(album_id):
             'success': True,
             'message': '密码验证成功',
             'token': token,
-            # 'token': f'album_{album_id}_verified'
         })
     else:
         return jsonify({'error': '密码错误'}), 401
@@ -656,248 +575,7 @@ def check_album_password(album_id):
     return jsonify({'has_password': password_record is not None})
 
 
-## mima end
-
-# 更新图片描述API
-@app.route('/api/images/<int:image_id>/description', methods=['PUT'])
-def update_image_description(image_id):
-    data = request.get_json()
-    description = data.get('description', '')
-
-    conn = get_db_connection()
-
-    # 检查图片是否存在
-    image = conn.execute('SELECT * FROM images WHERE id = ?', (image_id,)).fetchone()
-    if not image:
-        conn.close()
-        return jsonify({'error': '图片不存在'}), 404
-
-    # 更新描述
-    conn.execute('UPDATE images SET description = ? WHERE id = ?',
-                 (description, image_id))
-    conn.commit()
-    conn.close()
-
-    return jsonify({'message': '描述更新成功'})
-
-
-# exif
-import subprocess
-import json
-import os
-
-
-# 获取图片EXIF信息
-# @app.route('/api/images/<int:image_id>/exif', methods=['GET'])
-# def get_image_exif(image_id):
-#     conn = get_db_connection()
-#     image = conn.execute('SELECT * FROM images WHERE id = ?', (image_id,)).fetchone()
-#
-#     if not image:
-#         conn.close()
-#         return jsonify({'error': '图片不存在'}), 404
-#
-#
-#     conn.close()
-#
-#     # 获取原图路径
-#     original_path = os.path.join(UPLOAD_FOLDER, image['filename'])
-#
-#     if not os.path.exists(original_path):
-#         return jsonify({'error': '原图文件不存在'}), 404
-#
-#     try:
-#         # 使用exiftool获取EXIF信息
-#         result = subprocess.run(
-#             ['exiftool', '-j', '-s', '-EXIF:All', original_path],
-#             capture_output=True,
-#             text=True,
-#             check=True
-#         )
-#
-#         exif_info = json.loads(result.stdout)
-#         if exif_info and len(exif_info) > 0:
-#             return jsonify({'exif': exif_info[0]})
-#         else:
-#             return jsonify({'exif': {}})
-#
-#     except subprocess.CalledProcessError as e:
-#         return jsonify({'error': f'exiftool执行失败: {e.stderr}'}), 500
-#     except FileNotFoundError:
-#         return jsonify({'error': 'exiftool未安装或未在PATH中'}), 500
-#     except json.JSONDecodeError:
-#         return jsonify({'error': 'EXIF数据解析失败'}), 500
-#     except Exception as e:
-#         return jsonify({'error': f'获取EXIF信息失败: {str(e)}'}), 500
-#
-
-# @app.route('/api/images/<int:image_id>/exif', methods=['GET'])
-# def get_image_exif_simple(image_id):
-#     conn = get_db_connection()
-#     image = conn.execute('SELECT * FROM images WHERE id = ?', (image_id,)).fetchone()
-#
-#     if not image:
-#         conn.close()
-#         return jsonify({'error': '图片不存在'}), 404
-#
-#     conn.close()
-#
-#     # 获取原图路径
-#     original_path = os.path.join(UPLOAD_FOLDER, image['filename'])
-#
-#     if not os.path.exists(original_path):
-#         return jsonify({'error': '原图文件不存在'}), 404
-#
-#     try:
-#         # 定义精简的EXIF字段
-#         simple_fields = [
-#             'Make', 'Model', 'LensModel', 'DateTimeOriginal',
-#             'FocalLength', 'FNumber', 'ExposureTime', 'ISO',
-#             'ExposureCompensation', 'ExposureProgram', 'Flash',
-#             'MeteringMode', 'WhiteBalance', 'Software'
-#         ]
-#
-#         # 构建命令获取指定字段
-#         cmd = ['exiftool', '-j', '-s']
-#         for field in simple_fields:
-#             cmd.append(f'-{field}')
-#         cmd.append(original_path)
-#
-#         result = subprocess.run(
-#             cmd,
-#             capture_output=True,
-#             text=True,
-#             check=True
-#         )
-#
-#         exif_info = json.loads(result.stdout)
-#
-#         if exif_info and len(exif_info) > 0:
-#             # 过滤掉空值
-#             filtered_exif = {}
-#             for key, value in exif_info[0].items():
-#                 if value is not None and value != '':
-#                     filtered_exif[key] = value
-#             return jsonify({'exif': filtered_exif})
-#         else:
-#             return jsonify({'exif': {}})
-#
-#     except subprocess.CalledProcessError as e:
-#         return jsonify({'error': f'exiftool执行失败: {e.stderr}'}), 500
-#     except FileNotFoundError:
-#         return jsonify({'error': 'exiftool未安装或未在PATH中'}), 500
-#     except json.JSONDecodeError:
-#         return jsonify({'error': 'EXIF数据解析失败'}), 500
-#     except Exception as e:
-#         return jsonify({'error': f'获取EXIF信息失败: {str(e)}'}), 500
-
-
-@app.route('/api/images/<int:image_id>/exif', methods=['GET'])
-def get_image_exif_simple(image_id):
-    conn = get_db_connection()
-    image = conn.execute('SELECT * FROM images WHERE id = ?', (image_id,)).fetchone()
-
-    if not image:
-        conn.close()
-        return jsonify({'error': '图片不存在'}), 404
-
-    conn.close()
-
-    # 获取原图路径
-    original_path = os.path.join(UPLOAD_FOLDER, image['filename'])
-
-    if not os.path.exists(original_path):
-        return jsonify({'error': '原图文件不存在'}), 404
-
-    try:
-        # 定义精简的EXIF字段
-        simple_fields = [
-            'Make', 'Model', 'LensModel', 'DateTimeOriginal',
-            'FocalLength', 'FNumber', 'ExposureTime', 'ISO',
-            'ExposureCompensation', 'ExposureProgram', 'Flash',
-            'MeteringMode', 'WhiteBalance', 'Software'
-        ]
-
-        # 构建命令获取指定字段
-        cmd = ['exiftool', '-j', '-s']
-        for field in simple_fields:
-            cmd.append(f'-{field}')
-        cmd.append(original_path)
-
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=True
-        )
-
-        exif_info = json.loads(result.stdout)
-
-        if exif_info and len(exif_info) > 0:
-            # 字段翻译字典
-            field_translation = {
-                'Make': '相机品牌',
-                'Model': '相机型号',
-                'LensModel': '镜头型号',
-                'DateTimeOriginal': '拍摄时间',
-                'FocalLength': '焦距',
-                'FNumber': '光圈',
-                'ExposureTime': '曝光时间',
-                'ISO': 'ISO',
-                'ExposureCompensation': '曝光补偿',
-                'ExposureProgram': '曝光模式',
-                'Flash': '闪光灯',
-                'MeteringMode': '测光模式',
-                'WhiteBalance': '白平衡',
-                'Software': '软件'
-            }
-
-            # 格式化处理函数
-            def format_exif_value(key, value):
-                if value is None or value == '':
-                    return None
-
-                # 日期格式化
-                if key == 'DateTimeOriginal':
-                    try:
-                        # 将 "2023:10:15 14:30:25" 格式化为 "2023-10-15 14:30:25"
-                        if ':' in value:
-                            return value.replace(':', '-', 2)
-                    except:
-                        pass
-
-                return value
-
-            # 过滤和处理数据
-            filtered_exif = {}
-            for key, value in exif_info[0].items():
-                # 跳过SourceFile字段
-                if key == 'SourceFile':
-                    continue
-
-                # 过滤空值
-                if value is not None and value != '':
-                    formatted_value = format_exif_value(key, value)
-                    if formatted_value is not None:
-                        # 使用翻译后的字段名
-                        chinese_key = field_translation.get(key, key)
-                        filtered_exif[chinese_key] = formatted_value
-
-            return jsonify({'exif': filtered_exif})
-        else:
-            return jsonify({'exif': {}})
-
-    except subprocess.CalledProcessError as e:
-        return jsonify({'error': f'exiftool执行失败: {e.stderr}'}), 500
-    except FileNotFoundError:
-        return jsonify({'error': 'exiftool未安装或未在PATH中'}), 500
-    except json.JSONDecodeError:
-        return jsonify({'error': 'EXIF数据解析失败'}), 500
-    except Exception as e:
-        return jsonify({'error': f'获取EXIF信息失败: {str(e)}'}), 500
-
-
 if __name__ == '__main__':
     init_db()
-    app.run(debug=True, host='192.168.2.246', port=5000)
+    app.run(debug=True, host='', port=5000)
     # app.run(debug=True)

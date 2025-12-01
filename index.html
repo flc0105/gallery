@@ -632,6 +632,7 @@
                 </p>
                 <p v-if="currentAlbum.model_name"><strong>模特:</strong> {{ currentAlbum.model_name }}</p>
                 <p v-if="currentAlbum.location"><strong>地点:</strong> {{ currentAlbum.location }}</p>
+                 <p v-if="currentAlbum.description"><strong>描述:</strong> {{ currentAlbum.description }}</p>
             </div>
 
             <div v-if="images.length === 0" class="empty-state">
@@ -848,6 +849,9 @@
                 <el-form-item label="地点">
                     <el-input v-model="newAlbum.location" placeholder="请输入拍摄地点"></el-input>
                 </el-form-item>
+                <el-form-item label="描述">
+                    <el-input v-model="newAlbum.description" type="textarea" placeholder="请输入相册描述"></el-input>
+                </el-form-item>
             </el-form>
             <template #footer>
                 <el-button @click="showCreateAlbumDialog = false">取消</el-button>
@@ -869,6 +873,9 @@
                 </el-form-item>
                 <el-form-item label="地点">
                     <el-input v-model="currentAlbum.location" placeholder="请输入拍摄地点"></el-input>
+                </el-form-item>
+                <el-form-item label="描述">
+                    <el-input v-model="currentAlbum.description" type="textarea" placeholder="请输入相册描述"></el-input>
                 </el-form-item>
 
 
@@ -918,7 +925,7 @@
                 <el-table :data="exifTableData" stripe style="width: 100%">
                     <el-table-column prop="key" label="属性" width="200">
                         <template #default="scope">
-                            <strong>{{ scope.row.key }}</strong>
+                           {{ scope.row.key }}
                         </template>
                     </el-table-column>
                     <el-table-column prop="value" label="值">
@@ -989,6 +996,7 @@
 
             const newAlbum = ref({
                 name: '',
+                description: '',
                 shoot_date: '',
                 model_name: '',
                 location: '',
@@ -1080,7 +1088,7 @@
                         showCreateAlbumDialog.value = false;
                         newAlbum.value = {
                             name: '',
-
+                            description: '',
                             shoot_date: '',
                             model_name: '',
                             location: '',
