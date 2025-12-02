@@ -321,8 +321,7 @@ def upload_image(album_id):
     if file.filename == '':
         return jsonify({'error': '没有选择文件'}), 400
 
-
-    #md5
+    # md5
 
     # 计算文件的MD5
     file_content = file.read()
@@ -349,7 +348,6 @@ def upload_image(album_id):
             'existing_filename': existing_image['original_filename'],
             'album_name': existing_image['album_name']
         }), 409  # 409 Conflict
-
 
     # 生成唯一文件名
     filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{file.filename}"
@@ -606,7 +604,8 @@ def check_album_password(album_id):
 
     return jsonify({'has_password': password_record is not None})
 
-#标题
+
+# 标题
 # 在album.py或者主文件中添加
 @app.route('/api/albums/title', methods=['PUT'])
 def update_site_title():
@@ -675,8 +674,6 @@ def get_site_title():
         return jsonify({'title': '我的相册'})
 
 
-
-
 def add_md5_to_existing_images():
     """为已有图片计算并添加MD5值（一次性运行）"""
     conn = get_db_connection()
@@ -699,6 +696,64 @@ def add_md5_to_existing_images():
     conn.commit()
     conn.close()
     print("MD5 migration completed")
+
+
+# 移动图片到其他相册
+@app.route('/api/images/move', methods=['POST'])
+def move_images():
+    data = request.get_json()
+    image_ids = data.get('image_ids', [])
+    target_album_id = data.get('target_album_id')
+
+    if not image_ids:
+        return jsonify({'error': '请选择要移动的图片'}), 400
+
+    if not target_album_id:
+        return jsonify({'error': '请选择目标相册'}), 400
+
+    conn = get_db_connection()
+
+    try:
+        # 检查目标相册是否存在
+        target_album = conn.execute('SELECT id FROM albums WHERE id = ?', (target_album_id,)).fetchone()
+        if not target_album:
+            conn.close()
+            return jsonify({'error': '目标相册不存在'}), 404
+
+        # 检查所有图片是否存在
+        placeholders = ','.join(['?'] * len(image_ids))
+        existing_images = conn.execute(f'''
+            SELECT id, album_id, filename FROM images WHERE id IN ({placeholders})
+        ''', image_ids).fetchall()
+
+        if len(existing_images) != len(image_ids):
+            conn.close()
+            return jsonify({'error': '部分图片不存在'}), 404
+
+        # 移动图片
+        moved_count = 0
+        for image in existing_images:
+            # 如果图片已经在目标相册中，跳过
+            if image['album_id'] == target_album_id:
+                continue
+
+
+            # 更新图片的album_id
+            conn.execute('UPDATE images SET album_id = ? WHERE id = ?', (target_album_id, image['id']))
+            moved_count += 1
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'message': f'成功移动 {moved_count} 张图片',
+            'moved_count': moved_count,
+            'total_count': len(image_ids)
+        })
+
+    except Exception as e:
+        conn.close()
+        return jsonify({'error': f'移动图片失败: {str(e)}'}), 500
 
 if __name__ == '__main__':
     init_db()
