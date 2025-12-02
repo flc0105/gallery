@@ -1,6 +1,8 @@
 from datetime import datetime
 
 
+token_expire_minutes = 30
+
 # 验证token的函数
 def verify_auth_token(token, album_id):
     """验证相册访问token"""
@@ -21,7 +23,7 @@ def verify_auth_token(token, album_id):
         if len(parts) >= 4:
             token_time = int(parts[3])
             current_time = int(datetime.now().timestamp())
-            if current_time - token_time > 30 * 60:  # 30分钟过期
+            if current_time - token_time > token_expire_minutes * 60:  # 30分钟过期
                 return False
 
         return True
