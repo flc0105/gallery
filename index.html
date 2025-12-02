@@ -611,9 +611,9 @@
                             <div>图片: {{ getAlbumImageCount(album.id) }}</div>
                             <div>创建: {{ formatDate(album.created_at) }}</div>
 
-<!--                            <div class="lock-text" v-if="album.has_password && getTokenRemainingTime(album.id)">剩余:-->
-<!--                                {{ tokenRemainingTimes[album.id] || '计算中...' }}-->
-<!--                            </div>-->
+                            <!--                            <div class="lock-text" v-if="album.has_password && getTokenRemainingTime(album.id)">剩余:-->
+                            <!--                                {{ tokenRemainingTimes[album.id] || '计算中...' }}-->
+                            <!--                            </div>-->
                         </div>
                     </div>
                 </div>
@@ -642,14 +642,6 @@
                 <p v-if="currentAlbum.model_name"><strong>模特:</strong> {{ currentAlbum.model_name }}</p>
                 <p v-if="currentAlbum.location"><strong>地点:</strong> {{ currentAlbum.location }}</p>
                 <p v-if="currentAlbum.description"><strong>描述:</strong> {{ currentAlbum.description }}</p>
-
-                                <div v-if="getTokenRemainingTime(currentAlbum.id)">
-                    剩余: {{ getTokenRemainingTime(currentAlbum.id) }}
-                </div>
-
-<!--                <div v-if="getTokenRemainingTime(currentAlbum.id)" class="token-time">-->
-<!--                    剩余: {{ tokenRemainingTimes[currentAlbum.id] || '计算中...' }}-->
-<!--                </div>-->
             </div>
 
             <div v-if="images.length === 0" class="empty-state">
@@ -1028,7 +1020,7 @@
 </div>
 
 <script>
-    const {createApp, ref, onMounted, onBeforeUnmount, computed, watch} = Vue;
+    const {createApp, ref, onMounted, computed, watch} = Vue;
     const {ElMessage, ElMessageBox} = ElementPlus;
 
     const app = createApp({
@@ -1042,8 +1034,6 @@
             const showCreateAlbumDialog = ref(false);
             const showEditAlbumDialog = ref(false);
             const showUploadDialog = ref(false);
-
-            const tokenExpireMinutes = 30;
 
             const newAlbum = ref({
                 name: '',
@@ -1074,6 +1064,41 @@
                 }
             };
 
+            const openAlbum = async (albumId) => {
+                const album = albums.value.find(a => a.id === albumId);
+
+                // mimastart
+                // 如果相册有密码
+                if (album && album.has_password) {
+                    // 只要有token就认为可以访问，具体验证交给后端
+                    const hasToken = !!checkAlbumAccess(albumId);
+                    if (!hasToken) {
+                        // 没有token弹出密码验证
+                        const success = await showPasswordDialog(album);
+                        // 如果密码验证成功，继续打开相册
+                        if (success) {
+                            currentAlbum.value = {...album};
+                            const loaded = await loadAlbumImages(albumId);
+                            if (loaded) {
+                                currentView.value = 'album-detail';
+                            }
+                        }
+                        return;
+                    }
+                }
+                //end
+
+                // 如果相册没密码，直接打开
+                if (album) {
+                    currentAlbum.value = {...album};
+                    const success = await loadAlbumImages(albumId);
+                    // 只有loadAlbumImages返回true才进入相册详情
+                    if (success) {
+                        currentView.value = 'album-detail';
+                    }
+                }
+            };
+
             const loadAlbumImages = async (albumId) => {
                 try {
                     const headers = {};
@@ -1089,11 +1114,23 @@
                     });
 
                     if (response.status === 403) {
-                        // 无权限访问，清除token并重新验证
+                        // 无权限访问，清除token
                         delete albumAccessTokens.value[albumId];
-                        localStorage.removeItem(`album_${albumId}_time`);
-                        ElMessage.error('访问权限已过期，请重新输入密码');
-                        return;
+                        localStorage.removeItem(`album_${albumId}_token`);
+
+                        // 获取相册信息并弹出密码框
+                        const album = albums.value.find(a => a.id === albumId);
+                        if (album) {
+                            // 等待密码验证结果
+                            const success = await showPasswordDialog(album);
+                            // 如果用户取消，返回false，不进入相册
+                            if (!success) {
+                                return false;
+                            }
+                            // 如果验证成功，重新调用自己（因为现在有token了）
+                            return await loadAlbumImages(albumId);
+                        }
+                        return false;
                     }
 
                     if (!response.ok) {
@@ -1101,8 +1138,10 @@
                     }
 
                     images.value = await response.json();
+                    return true;
                 } catch (error) {
                     ElMessage.error('加载图片失败');
+                    return false;
                 }
             };
 
@@ -1145,13 +1184,13 @@
                     });
                     if (response.ok) {
 
-
                         //密码验证
                         if (passwordEnabled.value && newPassword.value.trim()) {
                             await setAlbumPassword();
-                        } else if (!passwordEnabled.value) {
-                            await removeAlbumPassword(); //todo
                         }
+                        // else if (!passwordEnabled.value) {
+                        //     await removeAlbumPassword();
+                        // }
 
 
                         ElMessage.success('相册更新成功');
@@ -1179,31 +1218,6 @@
                 }
             };
 
-            const openAlbum = async (albumId) => {
-                const album = albums.value.find(a => a.id === albumId);
-
-                // mimastart
-                if (album && album.has_password) {
-                    if (!checkAlbumAccess(albumId)) {
-                        await showPasswordDialog(album);
-                        return;
-                    }
-                }
-                //end
-
-                if (album) {
-                    currentAlbum.value = {...album};
-                    await loadAlbumImages(albumId);
-                    currentView.value = 'album-detail';
-
-                    //force quit
-                    // 如果是加密相册，启动页面监控
-                    if (album.has_password) {
-                        monitorAlbumToken(albumId);
-                    }
-                    //force quit
-                }
-            };
 
             const backToAlbums = () => {
                 currentView.value = 'albums';
@@ -1211,14 +1225,6 @@
                 images.value = [];
                 selectionMode.value = false;
                 selectedImages.value = [];
-
-                //force quit
-                // 清除页面监控
-                if (albumPageMonitor) {
-                    clearInterval(albumPageMonitor);
-                    albumPageMonitor = null;
-                }
-                //force quit
             };
 
             const backToAlbum = () => {
@@ -1293,7 +1299,7 @@
                         ElMessage.success('图片删除成功');
 
 
-// 重新加载图片列表
+                        // 重新加载图片列表
                         await loadAlbumImages(currentAlbum.value.id);
 
                         if (fromDetail) {
@@ -1326,13 +1332,12 @@
                             }
                         } else {
                             // 在列表页删除，保持原有逻辑
-                            if (currentAlbum.value.cover_image_id === imageId) {
-                                loadAlbums();
-                            }
                         }
 
-                        // loadAlbumImages(currentAlbum.value.id);
-                        // if (currentAlbum.value.cover_image_id === imageId) loadAlbums();
+
+                        if (currentAlbum.value.cover_image_id === imageId) {
+                            loadAlbums();
+                        }
                     }
                 } catch (error) {
                     if (error !== 'cancel') ElMessage.error('删除图片失败');
@@ -1386,35 +1391,18 @@
                 return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
             };
 
-            onMounted(() => {
+            onMounted(async () => {
                 loadAlbums();
                 loadSiteTitle();
-                restoreAlbumAccessTokens(); // 添加这行
-                // initTokenTimers(); // tokentimer
+                await restoreAlbumAccessTokens();
 
 
             });
-
-            // 组件卸载时清理定时器
-            onBeforeUnmount(() => {
-                //forcequit
-                if (albumPageMonitor) {
-                    clearInterval(albumPageMonitor);
-                    albumPageMonitor = null;
-                }
-                //tokentimer
-                // if (window.tokenTimers) {
-                //     Object.values(window.tokenTimers).forEach(timer => clearInterval(timer));
-                //     window.tokenTimers = {};
-                // }
-            });
-
 
             //rename start
             // 添加状态
             const renamingFile = ref(false);
             const newFilename = ref('');
-
 
             // 开始重命名
             const startRename = () => {
@@ -1468,7 +1456,7 @@
             // rename end
 
 
-            //favourtie start
+            // fav start
             // 添加收藏状态管理
             const toggleFavorite = async (imageId) => {
                 try {
@@ -1498,16 +1486,16 @@
                 }
             };
 
-// fav end
+            // fav end
 
 
-            //duoxuan start
-// 添加多选状态
+            // select start
+            // 添加多选状态
             const selectionMode = ref(false);
             const selectedImages = ref([]);
 
 
-// 切换选择模式
+            // 切换选择模式
             const toggleSelectionMode = () => {
                 selectionMode.value = !selectionMode.value;
                 if (!selectionMode.value) {
@@ -1516,7 +1504,7 @@
                 }
             };
 
-// 处理图片点击
+            // 处理图片点击
             const handleImageClick = (imageId) => {
                 if (selectionMode.value) {
                     // 选择模式下切换选择状态
@@ -1532,7 +1520,7 @@
                 }
             };
 
-// 批量删除图片
+            // 批量删除图片
             const batchDeleteImages = async () => {
                 if (selectedImages.value.length === 0) return;
 
@@ -1574,14 +1562,12 @@
             };
 
 
-            // 修改全选计算属性，基于筛选后的图片
             const isAllSelected = computed(() => {
                 return selectionMode.value &&
                     filteredImages.value.length > 0 &&
                     selectedImages.value.length === filteredImages.value.length;
             });
 
-// 修改全选函数，基于筛选后的图片
             const selectAllImages = () => {
                 if (selectedImages.value.length === filteredImages.value.length) {
                     // 如果已经全选，则清空选择
@@ -1591,14 +1577,14 @@
                     selectedImages.value = filteredImages.value.map(img => img.id);
                 }
             };
-            //duoxuan end
+            // select end
 
 
-            // 只看收藏start
-// 添加收藏筛选状态
+            // fav only start
+            // 添加收藏筛选状态
             const showFavoritesOnly = ref(false);
 
-// 计算筛选后的图片列表
+            // 计算筛选后的图片列表
             const filteredImages = computed(() => {
                 if (showFavoritesOnly.value) {
                     return images.value.filter(img => img.is_favorited);
@@ -1606,22 +1592,22 @@
                 return images.value;
             });
 
-// 切换收藏筛选
+            // 切换收藏筛选
             const toggleFavoriteFilter = () => {
                 showFavoritesOnly.value = !showFavoritesOnly.value;
                 // 切换筛选时清空选择状态
                 selectedImages.value = [];
             };
 
-            // 只看收藏end
+            // fav only end
 
             // mima start
 
             // 添加密码管理状态
             const passwordEnabled = ref(false);
             const newPassword = ref('');
-//             // 添加相册验证状态
             const albumAccessTokens = ref({});
+
             // 处理密码开关
             const handlePasswordToggle = (enabled) => {
                 if (!enabled) {
@@ -1630,7 +1616,7 @@
                 }
             };
 
-// 设置相册密码
+            // 设置相册密码
             const setAlbumPassword = async () => {
                 if (!newPassword.value.trim()) {
                     ElMessage.warning('请输入密码');
@@ -1720,25 +1706,15 @@
 
                                     if (response.ok) {
                                         const data = await response.json();
-                                        // 存储验证token
+
+                                        // 存储token到内存和localStorage
                                         albumAccessTokens.value[album.id] = data.token;
-                                        localStorage.setItem(`album_${album.id}_time`, new Date().getTime().toString());
 
-                                        // // tokentimer 启动倒计时
-                                        // startTokenTimer(album.id);
-
-                                        //forcequit
-                                        // 启动页面监控
-                                        monitorAlbumToken(album.id);
+                                        // 存储token到localStorage以便刷新后恢复
+                                        localStorage.setItem(`album_${album.id}_token`, data.token);
 
                                         ElMessage.success('密码验证成功');
                                         done();
-
-                                        // 验证成功后自动打开相册
-                                        currentAlbum.value = {...album};
-                                        await loadAlbumImages(album.id);
-                                        currentView.value = 'album-detail';
-
                                         resolve(true);
                                     } else {
                                         const data = await response.json();
@@ -1760,42 +1736,60 @@
 
             // 检查相册访问权限
             const checkAlbumAccess = (albumId) => {
-                const token = albumAccessTokens.value[albumId];
-                if (token) {
-                    // 检查token是否过期（5分钟）
-                    const tokenTime = parseInt(localStorage.getItem(`album_${albumId}_time`) || '0');
-                    const currentTime = new Date().getTime();
-                    if (currentTime - tokenTime < tokenExpireMinutes * 60 * 1000) { // 30分钟
-                        return true;
-                    } else {
-                        // token过期，清除
-                        delete albumAccessTokens.value[albumId];
-                        localStorage.removeItem(`album_${albumId}_time`);
+                // 只要有token就认为可以访问，具体验证交给后端
+                return !!albumAccessTokens.value[albumId];
+            };
+
+            const restoreAlbumAccessTokens = async () => {
+                const verifiedTokens = {};
+
+                // 先收集所有需要验证的键
+                const tokenKeys = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith('album_') && key.endsWith('_token')) {
+                        tokenKeys.push(key);
                     }
                 }
 
-                // 如果没有内存中的token，检查localStorage
-                const tokenTime = parseInt(localStorage.getItem(`album_${albumId}_time`) || '0');
-                if (tokenTime) {
-                    const currentTime = new Date().getTime();
-                    if (currentTime - tokenTime < tokenExpireMinutes * 60 * 1000) {
-                        // 恢复token到内存
-                        const timestamp = tokenTime;
-                        albumAccessTokens.value[albumId] = `album_${albumId}_verified_${timestamp}`;
-                        return true;
-                    } else {
-                        localStorage.removeItem(`album_${albumId}_time`);
+                // 然后验证每个token
+                for (const key of tokenKeys) {
+                    const albumId = key.replace('album_', '').replace('_token', '');
+                    const token = localStorage.getItem(key);
+
+                    if (token) {
+                        try {
+                            const response = await fetch(`/api/albums/${albumId}/verify-token`, {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({token})
+                            });
+
+                            if (response.ok) {
+                                const data = await response.json();
+                                if (data.valid) {
+                                    verifiedTokens[albumId] = token;
+                                } else {
+                                    // token无效，清除
+                                    localStorage.removeItem(`album_${albumId}_token`);
+                                }
+                            }
+                        } catch (error) {
+                            console.error('验证token失败:', error);
+                        }
                     }
                 }
 
-                return false;
+                // 恢复有效的token
+                for (const [albumId, token] of Object.entries(verifiedTokens)) {
+                    albumAccessTokens.value[albumId] = token;
+                }
             };
 
 
             // mima end
 
             // desc start
-
             const editImageDescription = async (image) => {
                 try {
                     const {value} = await ElMessageBox.prompt('请输入图片描述', '编辑描述', {
@@ -1846,19 +1840,15 @@
                     }
                 }
             };
+            // desc end
 
 
-            //end
-
-
-            //exif start
-
-            // 添加EXIF相关状态
+            // exif start
             const showExifDialog = ref(false);
             const exifData = ref(null);
             const currentExifImageId = ref(null);
 
-// EXIF表格数据
+            // EXIF表格数据
             const exifTableData = computed(() => {
                 if (!exifData.value) return [];
 
@@ -1885,7 +1875,7 @@
                 return tableData.sort((a, b) => a.key.localeCompare(b.key));
             });
 
-// 显示图片EXIF信息
+            // 显示图片EXIF信息
             const showImageExif = async (imageId) => {
                 showExifDialog.value = true;
                 currentExifImageId.value = imageId;
@@ -1903,16 +1893,13 @@
                     ElMessage.error('获取EXIF信息失败');
                 }
             };
+            // exif end
 
 
-            //end
-
-
-            // title
-            // 在setup函数中添加相关状态和方法
+            // title start
             const siteTitle = ref('我的相册');
 
-// 加载站点标题
+            // 加载站点标题
             const loadSiteTitle = async () => {
                 try {
                     const response = await fetch('/api/albums/title');
@@ -1925,7 +1912,7 @@
                 }
             };
 
-// 编辑站点标题（使用ElMessageBox.prompt）
+            // 编辑站点标题
             const editSiteTitle = async () => {
                 try {
                     const {value} = await ElMessageBox.prompt('请输入新的站点标题', '修改站点标题', {
@@ -1954,7 +1941,7 @@
                 }
             };
 
-// 保存站点标题
+            // 保存站点标题
             const saveSiteTitle = async (newTitle) => {
                 try {
                     const response = await fetch('/api/albums/title', {
@@ -1981,15 +1968,14 @@
                     ElMessage.error('更新标题失败');
                 }
             };
+            //title end
 
-
-            //移动
-            // 在setup函数中添加状态
+            // move start
             const showMoveToAlbumDialog = ref(false);
             const targetAlbumId = ref(null);
             const otherAlbums = ref([]);
 
-// 显示移动对话框
+            // 显示移动对话框
             const showMoveDialog = async () => {
                 if (selectedImages.value.length === 0) return;
 
@@ -2012,7 +1998,7 @@
                 }
             };
 
-// 移动选中的图片
+            // 移动选中的图片
             const moveSelectedImages = async () => {
                 if (!targetAlbumId.value || selectedImages.value.length === 0) return;
 
@@ -2055,181 +2041,7 @@
                     ElMessage.error('移动图片失败');
                 }
             };
-
-            // 添加计算剩余时间的函数
-            const getTokenRemainingTime = (albumId) => {
-                const tokenTime = parseInt(localStorage.getItem(`album_${albumId}_time`) || '0');
-                if (!tokenTime) return null;
-
-                const currentTime = new Date().getTime();
-                const elapsed = currentTime - tokenTime;
-                const totalValidTime = tokenExpireMinutes * 60 * 1000; // 30分钟
-                const remaining = totalValidTime - elapsed;
-
-                if (remaining <= 0) return null;
-
-                const minutes = Math.floor(remaining / (60 * 1000));
-                const seconds = Math.floor((remaining % (60 * 1000)) / 1000);
-
-                return `${minutes}分${seconds}秒`;
-            };
-
-// 添加恢复token的函数
-            const restoreAlbumAccessTokens = () => {
-                // 从localStorage恢复有效的token
-                for (let i = 0; i < localStorage.length; i++) {
-                    const key = localStorage.key(i);
-                    if (key && key.startsWith('album_') && key.endsWith('_time')) {
-                        const albumId = key.replace('album_', '').replace('_time', '');
-                        const tokenTime = parseInt(localStorage.getItem(key) || '0');
-                        const currentTime = new Date().getTime();
-
-                        // 检查token是否仍然有效（30分钟内）
-                        if (currentTime - tokenTime < tokenExpireMinutes * 60 * 1000) {
-                            // 根据你的后端token生成规则恢复token
-                            // 假设token格式是: album_{albumId}_verified_{timestamp}
-                            const timestamp = tokenTime;
-                            albumAccessTokens.value[albumId] = `album_${albumId}_verified_${timestamp}`;
-                        } else {
-                            // token已过期，清除
-                            localStorage.removeItem(key);
-                        }
-                    }
-                }
-            };
-
-//实时显示
-//             // 添加响应式状态
-//             const tokenRemainingTimes = ref({});
-//
-// // 初始化倒计时
-//             const initTokenTimers = () => {
-//                 // 清除现有定时器
-//                 if (window.tokenTimers) {
-//                     Object.values(window.tokenTimers).forEach(timer => clearInterval(timer));
-//                 }
-//                 window.tokenTimers = {};
-//
-//                 // 为每个有token的相册设置定时器
-//                 for (let i = 0; i < localStorage.length; i++) {
-//                     const key = localStorage.key(i);
-//                     if (key && key.startsWith('album_') && key.endsWith('_time')) {
-//                         const albumId = key.replace('album_', '').replace('_time', '');
-//                         startTokenTimer(albumId);
-//                     }
-//                 }
-//             };
-//
-// // 启动单个相册的倒计时
-//             const startTokenTimer = (albumId) => {
-//                 // 清除旧的定时器
-//                 if (window.tokenTimers && window.tokenTimers[albumId]) {
-//                     clearInterval(window.tokenTimers[albumId]);
-//                 }
-//
-//                 const updateRemainingTime = () => {
-//                     const tokenTime = parseInt(localStorage.getItem(`album_${albumId}_time`) || '0');
-//                     if (!tokenTime) {
-//                         tokenRemainingTimes.value[albumId] = null;
-//                         clearInterval(window.tokenTimers[albumId]);
-//                         delete window.tokenTimers[albumId];
-//                         return;
-//                     }
-//
-//                     const currentTime = new Date().getTime();
-//                     const elapsed = currentTime - tokenTime;
-//                     const totalValidTime = tokenExpireMinutes * 60 * 1000; // 30分钟
-//                     const remaining = totalValidTime - elapsed;
-//
-//                     if (remaining <= 0) {
-//                         tokenRemainingTimes.value[albumId] = null;
-//                         delete albumAccessTokens.value[albumId];
-//                         localStorage.removeItem(`album_${albumId}_time`);
-//                         clearInterval(window.tokenTimers[albumId]);
-//                         delete window.tokenTimers[albumId];
-//                         return;
-//                     }
-//
-//                     const minutes = Math.floor(remaining / (60 * 1000));
-//                     const seconds = Math.floor((remaining % (60 * 1000)) / 1000);
-//
-//                     tokenRemainingTimes.value[albumId] = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-//                 };
-//
-//                 // 立即更新一次
-//                 updateRemainingTime();
-//
-//                 // 设置定时器每秒更新
-//                 window.tokenTimers = window.tokenTimers || {};
-//                 window.tokenTimers[albumId] = setInterval(updateRemainingTime, 1000);
-//             };
-
-
-//force quit
-            // 添加相册页面监控
-            let albumPageMonitor = null;
-
-// 监控当前相册的token状态
-            const monitorAlbumToken = (albumId) => {
-                // 清除旧的监控器
-                if (albumPageMonitor) {
-                    clearInterval(albumPageMonitor);
-                }
-
-                if (!albumId) return;
-
-                albumPageMonitor = setInterval(() => {
-                    const tokenTime = parseInt(localStorage.getItem(`album_${albumId}_time`) || '0');
-                    if (!tokenTime) {
-                        // token不存在，强制退出
-                        forceLogoutFromAlbum(albumId);
-                        return;
-                    }
-
-                    const currentTime = new Date().getTime();
-                    const elapsed = currentTime - tokenTime;
-                    const totalValidTime = tokenExpireMinutes * 60 * 1000; // 30分钟
-
-                    if (elapsed >= totalValidTime) {
-                        // token已过期，强制退出
-                        forceLogoutFromAlbum(albumId);
-                    }
-                }, 5000); // 每5秒检查一次
-            };
-
-// 强制退出相册
-            const forceLogoutFromAlbum = (albumId) => {
-                // 清除token
-                delete albumAccessTokens.value[albumId];
-                localStorage.removeItem(`album_${albumId}_time`);
-
-                // 清除倒计时
-                if (window.tokenTimers && window.tokenTimers[albumId]) {
-                    clearInterval(window.tokenTimers[albumId]);
-                    delete window.tokenTimers[albumId];
-                }
-
-                // 清除页面监控
-                if (albumPageMonitor) {
-                    clearInterval(albumPageMonitor);
-                    albumPageMonitor = null;
-                }
-
-                // 如果当前正在查看这个相册，强制返回相册列表
-                if (currentView.value === 'album-detail' && currentAlbum.value.id === albumId) {
-                    ElMessage.warning('访问权限已过期，请重新输入密码');
-                    backToAlbums();
-                }
-
-                // 如果正在查看图片详情页且图片属于该相册，也强制返回
-                if (currentView.value === 'image-detail') {
-                    const currentImageAlbum = images.value.find(img => img.id === currentImage.value.id)?.album_id;
-                    if (currentImageAlbum === albumId) {
-                        ElMessage.warning('访问权限已过期，请重新输入密码');
-                        backToAlbums();
-                    }
-                }
-            };
+            // move end
 
 
             return {
@@ -2269,18 +2081,14 @@
                 exifTableData,
                 showImageExif,
                 siteTitle,
-                // ... 其他方法
                 loadSiteTitle,
                 editSiteTitle,
                 saveSiteTitle,
                 showMoveToAlbumDialog,
                 targetAlbumId,
                 otherAlbums,
-                // ... 其他方法
                 showMoveDialog,
                 moveSelectedImages,
-                getTokenRemainingTime,
-                // tokenRemainingTimes
             };
         }
     })

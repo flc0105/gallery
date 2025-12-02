@@ -7,7 +7,7 @@ from PIL import Image
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 
-from auth_utils import verify_auth_token, generate_auth_token
+from auth_utils import verify_auth_token, generate_auth_token, token_expire_minutes
 from image_utils import generate_thumbnail, generate_compressed, get_image_exif_simple
 
 app = Flask(__name__)
@@ -525,6 +525,7 @@ def verify_album_password(album_id):
             'success': True,
             'message': '密码验证成功',
             'token': token,
+            'expires_in': token_expire_minutes & 60  # 返回有效期（秒）
         })
     else:
         return jsonify({'error': '密码错误'}), 401
@@ -603,6 +604,22 @@ def check_album_password(album_id):
     conn.close()
 
     return jsonify({'has_password': password_record is not None})
+
+
+# 添加token验证接口
+@app.route('/api/albums/<int:album_id>/verify-token', methods=['POST'])
+def verify_album_token(album_id):
+    data = request.get_json()
+    token = data.get('token')
+
+    if not token:
+        return jsonify({'valid': False, 'error': 'Token不能为空'}), 400
+
+    # 使用之前的verify_auth_token函数验证
+    if verify_auth_token(token, album_id):
+        return jsonify({'valid': True, 'message': 'Token有效'})
+    else:
+        return jsonify({'valid': False, 'error': 'Token无效或已过期'})
 
 
 # 标题
@@ -737,7 +754,6 @@ def move_images():
             if image['album_id'] == target_album_id:
                 continue
 
-
             # 更新图片的album_id
             conn.execute('UPDATE images SET album_id = ? WHERE id = ?', (target_album_id, image['id']))
             moved_count += 1
@@ -754,6 +770,7 @@ def move_images():
     except Exception as e:
         conn.close()
         return jsonify({'error': f'移动图片失败: {str(e)}'}), 500
+
 
 if __name__ == '__main__':
     init_db()
