@@ -658,7 +658,9 @@
                         @click="handleImageClick(image.id)"
                 >
                     <div class="selection-checkbox" v-if="selectionMode && selectedImages.includes(image.id)">
-                        ✅
+                        <el-icon>
+                            <Check/>
+                        </el-icon>
                     </div>
                     <img
                             :src="`/api/images/${image.id}/file?type=thumbnail`"
