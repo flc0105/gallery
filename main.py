@@ -308,7 +308,11 @@ def get_image_exif(image_id):
     if not os.path.exists(original_path):
         return jsonify({'error': '原图文件不存在'}), 404
 
-    return jsonify({'exif': get_image_exif_simple(original_path)})
+    try:
+        exif = get_image_exif_simple(original_path)
+        return jsonify({'exif': exif}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 # 上传图片到相册
